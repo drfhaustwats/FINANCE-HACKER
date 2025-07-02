@@ -1388,6 +1388,158 @@ async def get_spending_trends(months: int = 12, user_id: str = Depends(get_curre
     
     return dict(monthly_trends)
 
+# Account Type Analytics
+@api_router.get("/analytics/account-type-breakdown")
+async def get_account_type_breakdown(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    user_id: str = Depends(get_current_user_id)
+):
+    """Get spending breakdown by account type (debit vs credit)"""
+    filter_dict = {"user_id": user_id}
+    
+    if start_date:
+        filter_dict["date"] = {"$gte": start_date}
+    if end_date:
+        if "date" in filter_dict:
+            filter_dict["date"]["$lte"] = end_date
+        else:
+            filter_dict["date"] = {"$lte": end_date}
+    
+    transactions = await db.transactions.find(filter_dict).to_list(10000)
+    
+    if not transactions:
+        return {
+            "debit": {"total": 0, "count": 0, "categories": {}},
+            "credit": {"total": 0, "count": 0, "categories": {}}
+        }
+    
+    account_breakdown = {
+        "debit": {"total": 0, "count": 0, "categories": defaultdict(float)},
+        "credit": {"total": 0, "count": 0, "categories": defaultdict(float)}
+    }
+    
+    for transaction in transactions:
+        amount = abs(transaction["amount"])
+        account_type = "debit" if transaction.get("account_type") == "debit" else "credit"
+        category = transaction["category"]
+        
+        account_breakdown[account_type]["total"] += amount
+        account_breakdown[account_type]["count"] += 1
+        account_breakdown[account_type]["categories"][category] += amount
+    
+    # Convert defaultdict to regular dict and calculate percentages
+    result = {}
+    total_spending = sum(acc["total"] for acc in account_breakdown.values())
+    
+    for account_type, data in account_breakdown.items():
+        percentage = (data["total"] / total_spending * 100) if total_spending > 0 else 0
+        result[account_type] = {
+            "total": data["total"],
+            "count": data["count"],
+            "percentage": round(percentage, 2),
+            "categories": dict(data["categories"])
+        }
+    
+    return result
+
+@api_router.get("/analytics/monthly-by-account-type")
+async def get_monthly_breakdown_by_account_type(
+    year: Optional[int] = None,
+    user_id: str = Depends(get_current_user_id)
+):
+    """Get monthly spending breakdown by account type"""
+    if year is None:
+        year = datetime.now().year
+    
+    filter_dict = {
+        "user_id": user_id,
+        "date": {
+            "$gte": f"{year}-01-01",
+            "$lte": f"{year}-12-31"
+        }
+    }
+    
+    transactions = await db.transactions.find(filter_dict).to_list(10000)
+    
+    # Group by month and account type
+    monthly_data = defaultdict(lambda: {
+        "debit": {"total": 0, "count": 0},
+        "credit": {"total": 0, "count": 0}
+    })
+    
+    for transaction in transactions:
+        trans_date = datetime.fromisoformat(transaction["date"]).date()
+        month_key = f"{trans_date.year}-{trans_date.month:02d}"
+        amount = abs(transaction["amount"])
+        account_type = "debit" if transaction.get("account_type") == "debit" else "credit"
+        
+        monthly_data[month_key][account_type]["total"] += amount
+        monthly_data[month_key][account_type]["count"] += 1
+    
+    # Convert to list format
+    reports = []
+    for month_key, data in monthly_data.items():
+        year_val, month_val = month_key.split("-")
+        reports.append({
+            "month": month_key,
+            "year": int(year_val),
+            "debit": data["debit"],
+            "credit": data["credit"],
+            "total": data["debit"]["total"] + data["credit"]["total"]
+        })
+    
+    return sorted(reports, key=lambda x: x["month"])
+
+@api_router.get("/analytics/source-breakdown")
+async def get_source_breakdown(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    user_id: str = Depends(get_current_user_id)
+):
+    """Get spending breakdown by transaction source (e.g., Jane's Debit, John's Credit)"""
+    filter_dict = {"user_id": user_id}
+    
+    if start_date:
+        filter_dict["date"] = {"$gte": start_date}
+    if end_date:
+        if "date" in filter_dict:
+            filter_dict["date"]["$lte"] = end_date
+        else:
+            filter_dict["date"] = {"$lte": end_date}
+    
+    transactions = await db.transactions.find(filter_dict).to_list(10000)
+    
+    if not transactions:
+        return []
+    
+    source_breakdown = defaultdict(lambda: {"total": 0, "count": 0, "account_type": ""})
+    
+    for transaction in transactions:
+        amount = abs(transaction["amount"])
+        source = transaction.get("pdf_source", "Manual")
+        account_type = transaction.get("account_type", "unknown")
+        
+        source_breakdown[source]["total"] += amount
+        source_breakdown[source]["count"] += 1
+        source_breakdown[source]["account_type"] = account_type
+    
+    # Convert to list and calculate percentages
+    total_spending = sum(data["total"] for data in source_breakdown.values())
+    
+    result = []
+    for source, data in source_breakdown.items():
+        percentage = (data["total"] / total_spending * 100) if total_spending > 0 else 0
+        result.append({
+            "source": source,
+            "total": data["total"],
+            "count": data["count"],
+            "percentage": round(percentage, 2),
+            "account_type": data["account_type"]
+        })
+    
+    return sorted(result, key=lambda x: x["total"], reverse=True)
+
 # Include the router in the main app
 app.include_router(api_router)
 
