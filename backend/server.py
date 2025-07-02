@@ -242,6 +242,9 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
             if not line or len(line) < 15:
                 continue
                 
+            # Debug: Print every non-empty line to catch missing transactions
+            print(f"LINE {line_num}: {line}")
+                
             # Skip header lines and section headers - be more specific
             skip_line = False
             line_upper = line.upper()
@@ -266,6 +269,12 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
             # Any line with a month abbreviation followed by digits AND a decimal amount
             has_month_day = re.search(r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}', line)
             has_decimal_amount = re.search(r'\d+\.\d{2}', line)
+            
+            # Additional check: if line contains "Lovisa" specifically, flag it for debugging
+            if 'lovisa' in line.lower():
+                print(f"🔍 FOUND LOVISA LINE: {line}")
+                print(f"   Has month/day: {bool(has_month_day)}")
+                print(f"   Has decimal amount: {bool(has_decimal_amount)}")
             
             transaction_match = None  # Initialize here
             
