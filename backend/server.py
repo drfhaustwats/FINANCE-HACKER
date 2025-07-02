@@ -214,8 +214,145 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
         r'(\w{3}\s+\d{1,2})\s+([A-Z0-9\s\#\*\.\-\/\&\(\)]{10,})\s+(\d+\.\d{2})(?:\s|$)'
     ]
     
+def detect_statement_format(text: str) -> str:
+    """Detect the type of CIBC statement format"""
+    text_upper = text.upper()
+    
+    # Check for debit account indicators
+    debit_indicators = [
+        'TRANSACTION DETAILS',
+        'WITHDRAWALS ($)',
+        'DEPOSITS ($)',
+        'BALANCE ($)',
+        'VISA DEBIT RETAIL PURCHASE',
+        'ACCOUNT SUMMARY'
+    ]
+    
+    # Check for credit card indicators  
+    credit_indicators = [
+        'YOUR NEW CHARGES',
+        'SPEND CATEGORIES',
+        'CARD NUMBER',
+        'DIVIDEND',
+        'VISA CARD'
+    ]
+    
+    debit_score = sum(1 for indicator in debit_indicators if indicator in text_upper)
+    credit_score = sum(1 for indicator in credit_indicators if indicator in text_upper)
+    
+    print(f"Format detection - Debit score: {debit_score}, Credit score: {credit_score}")
+    
+    if debit_score > credit_score:
+        return 'debit'
+    else:
+        return 'credit'
+
+def parse_cibc_debit_transactions(text: str, user_id: str, source_filename: str, statement_year: int, user_name: str) -> List[dict]:
+    """Parse CIBC debit account transactions with table format"""
+    transactions = []
+    
+    print("Parsing CIBC debit format...")
+    
+    lines = text.split('\n')
+    in_transaction_section = False
+    
+    for line_num, line in enumerate(lines):
+        line = line.strip()
+        if not line:
+            continue
+            
+        # Look for transaction details section
+        if 'transaction details' in line.lower():
+            in_transaction_section = True
+            print(f"Found transaction details section at line {line_num}")
+            continue
+            
+        # Skip header lines
+        if any(header in line.upper() for header in ['DATE', 'DESCRIPTION', 'WITHDRAWALS', 'DEPOSITS', 'BALANCE']):
+            continue
+            
+        # Stop at end indicators
+        if any(end_marker in line.lower() for end_marker in ['closing balance', 'important:', 'free transaction']):
+            break
+            
+        if in_transaction_section and line:
+            # Try to parse debit transaction line
+            # Format: Date | Description | Withdrawals | Deposits | Balance
+            
+            # Look for date pattern at start of line
+            date_match = re.match(r'^(\w{3}\s+\d{1,2})', line)
+            if not date_match:
+                continue
+                
+            date_str = date_match.group(1)
+            remaining_line = line[len(date_str):].strip()
+            
+            # Look for amounts (withdrawals, deposits, balance)
+            # Balance is usually at the end
+            balance_match = re.search(r'(\d+\.\d{2})\s*$', remaining_line)
+            if not balance_match:
+                continue
+                
+            balance_amount = balance_match.group(1)
+            line_without_balance = remaining_line[:balance_match.start()].strip()
+            
+            # Look for withdrawal or deposit amount before balance
+            amount_pattern = r'(\d+\.\d{2})\s+(\d+\.\d{2})?'
+            amounts = re.findall(r'(\d+\.\d{2})', line_without_balance)
+            
+            if not amounts:
+                continue
+                
+            # The transaction amount is typically the first amount found
+            # If there are 2 amounts, it's usually withdrawal, deposit
+            transaction_amount = float(amounts[0])
+            
+            # Extract description (everything between date and amounts)
+            desc_end_pos = line_without_balance.rfind(amounts[0])
+            if desc_end_pos == -1:
+                continue
+                
+            description = line_without_balance[:desc_end_pos].strip()
+            
+            # Clean up description
+            description = re.sub(r'\s+', ' ', description)
+            
+            # Skip if description is too short or looks like header
+            if len(description) < 5:
+                continue
+                
+            # Skip certain transaction types
+            skip_keywords = ['balance forward', 'opening balance', 'service charge']
+            if any(keyword in description.lower() for keyword in skip_keywords):
+                continue
+                
+            # Parse date
+            transaction_date = parse_date_string(date_str, statement_year)
+            if not transaction_date:
+                continue
+                
+            # Categorize transaction
+            category = clean_category("", description)
+            
+            # Create transaction
+            transaction = {
+                'date': transaction_date.isoformat(),
+                'description': description,
+                'category': category,
+                'amount': transaction_amount,
+                'account_type': 'debit',
+                'user_id': user_id,
+                'pdf_source': source_filename or 'pdf_import',
+                'user_name': user_name
+            }
+            
+            transactions.append(transaction)
+            print(f"✅ DEBIT ADDED: {description} -> ${transaction_amount} on {transaction_date} ({category})")
+    
+    return transactions
+
 def parse_transactions_from_text(text: str, user_id: str, source_filename: str = None) -> List[dict]:
-    """Parse transactions from extracted PDF text - enhanced for CIBC format"""
+    """Parse transactions from extracted PDF text - enhanced for multiple CIBC formats"""
     transactions = []
     
     # Extract metadata first
@@ -225,7 +362,17 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
     
     print(f"Extracted metadata: User: {user_name}, Year: {statement_year}")
     
-    # Split by pages and tables to process each section
+    # Detect statement format
+    format_type = detect_statement_format(text)
+    print(f"Detected format: {format_type}")
+    
+    if format_type == 'debit':
+        # Use debit parsing logic
+        transactions = parse_cibc_debit_transactions(text, user_id, source_filename, statement_year, user_name)
+        print(f"\n=== DEBIT PARSING COMPLETE: {len(transactions)} transactions found ===")
+        return remove_duplicates(transactions)
+    
+    # Original credit card parsing logic
     sections = text.split('--- PAGE')
     
     for section_num, section in enumerate(sections):
