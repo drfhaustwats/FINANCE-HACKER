@@ -402,6 +402,30 @@ frontend:
       - working: "NA"
         agent: "testing"
         comment: "Frontend testing is not in scope for this task"
+        
+  - task: "Monthly spending overview display"
+    implemented: true
+    working: false
+    file: "/app/frontend/src/App.js"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: false
+        agent: "testing"
+        comment: "Tested the Monthly Spending Overview section on the frontend. The API call is correctly made with the year parameter (year=2025), but the API returns an empty array. The console log shows 'Monthly data received: []'. The UI correctly displays the 'No monthly data available' message. The issue appears to be that the backend is not returning any monthly data for the year 2025, despite having transactions in the database."
+        
+  - task: "Date display verification"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/App.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Verified that the DOLLARAMA #594 transaction date is correctly displayed as 'Nov 14, 2024' in the Transactions tab. The timezone fix in the formatDate function is working properly. The date is no longer offset by -1 day."
 
 metadata:
   created_by: "testing_agent"
