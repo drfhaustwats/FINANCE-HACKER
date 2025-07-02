@@ -150,9 +150,10 @@ const Dashboard = () => {
       setSelectedTransactions(new Set());
       setSelectAll(false);
       fetchData(); // Refresh data
+      alert(`Successfully deleted ${selectedTransactions.size} transactions`);
     } catch (error) {
       console.error('Error bulk deleting transactions:', error);
-      alert('Error deleting transactions');
+      alert('Error deleting transactions: ' + (error.response?.data?.detail || error.message));
     }
   };
 
