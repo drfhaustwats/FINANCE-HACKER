@@ -885,6 +885,15 @@ const Dashboard = () => {
                           {formatCurrency(transaction.amount)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            transaction.account_type === 'debit' 
+                              ? 'bg-blue-100 text-blue-800' 
+                              : 'bg-purple-100 text-purple-800'
+                          }`}>
+                            {transaction.account_type === 'debit' ? 'Debit' : 'Credit'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
                           {transaction.pdf_source && transaction.pdf_source !== 'Manual' ? (
                             <span className="bg-green-100 text-green-800 px-2 py-1 rounded" title={transaction.pdf_source}>
                               {transaction.pdf_source.length > 15 ? transaction.pdf_source.substring(0, 12) + '...' : transaction.pdf_source}
