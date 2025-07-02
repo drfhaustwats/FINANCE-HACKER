@@ -540,6 +540,152 @@ def test_pdf_import_error_handling():
     except Exception as e:
         return print_test_result("PDF Import Error Handling", False, error=str(e))
 
+# Test 19: PDF transaction extraction completeness
+def test_pdf_extraction_completeness():
+    try:
+        # Create a test PDF file with the Lovisa transaction
+        pdf_path = '/tmp/test_lovisa_transaction.pdf'
+        create_test_pdf(pdf_path)
+        
+        # Upload the PDF file
+        with open(pdf_path, 'rb') as f:
+            files = {'file': ('test_lovisa_transaction.pdf', f, 'application/pdf')}
+            response = requests.post(f"{API_URL}/transactions/pdf-import", files=files)
+        
+        success = response.status_code == 200 and "message" in response.json()
+        
+        # Check if the Lovisa transaction was extracted
+        if success:
+            # Get all transactions
+            transactions_response = requests.get(f"{API_URL}/transactions")
+            if transactions_response.status_code == 200:
+                transactions = transactions_response.json()
+                lovisa_found = False
+                for transaction in transactions:
+                    if "lovisa" in transaction.get("description", "").lower():
+                        lovisa_found = True
+                        print(f"Found Lovisa transaction: {transaction}")
+                        break
+                
+                if not lovisa_found:
+                    print("WARNING: Lovisa transaction not found in extracted transactions")
+                    success = False
+        
+        # Clean up
+        if os.path.exists(pdf_path):
+            os.remove(pdf_path)
+        
+        return print_test_result("PDF Transaction Extraction Completeness", success, response)
+    except Exception as e:
+        return print_test_result("PDF Transaction Extraction Completeness", False, error=str(e))
+
+# Test 20: Check for transactions on specific dates
+def test_transactions_by_date():
+    try:
+        # Check for transactions on Oct 13-15
+        response = requests.get(f"{API_URL}/transactions?start_date=2024-10-13&end_date=2024-10-15")
+        success = response.status_code == 200
+        
+        transactions = response.json()
+        print(f"Found {len(transactions)} transactions between Oct 13-15:")
+        for transaction in transactions:
+            print(f"  {transaction.get('date')}: {transaction.get('description')} - ${transaction.get('amount')}")
+        
+        # Check specifically for the Lovisa transaction
+        lovisa_found = False
+        for transaction in transactions:
+            if "lovisa" in transaction.get("description", "").lower():
+                lovisa_found = True
+                print(f"Found Lovisa transaction: {transaction}")
+                break
+        
+        if not lovisa_found:
+            print("WARNING: Lovisa transaction not found in date range Oct 13-15")
+        
+        return print_test_result("Transactions by Date", success, response)
+    except Exception as e:
+        return print_test_result("Transactions by Date", False, error=str(e))
+
+# Test 21: Check database state
+def test_database_state():
+    try:
+        # Get all transactions
+        response = requests.get(f"{API_URL}/transactions")
+        success = response.status_code == 200
+        
+        transactions = response.json()
+        print(f"Total transactions in database: {len(transactions)}")
+        
+        # Group by month
+        months = {}
+        for transaction in transactions:
+            date_str = transaction.get("date", "")
+            if date_str:
+                month = date_str[:7]  # YYYY-MM
+                if month not in months:
+                    months[month] = 0
+                months[month] += 1
+        
+        print("Transactions by month:")
+        for month, count in sorted(months.items()):
+            print(f"  {month}: {count} transactions")
+        
+        # Group by category
+        categories = {}
+        for transaction in transactions:
+            category = transaction.get("category", "Unknown")
+            if category not in categories:
+                categories[category] = 0
+            categories[category] += 1
+        
+        print("Transactions by category:")
+        for category, count in sorted(categories.items()):
+            print(f"  {category}: {count} transactions")
+        
+        return print_test_result("Database State", success, response)
+    except Exception as e:
+        return print_test_result("Database State", False, error=str(e))
+
+# Test 22: Monthly report analytics with year parameter
+def test_monthly_report_with_year():
+    try:
+        # Test with current year (2025)
+        current_year = datetime.now().year
+        response_current = requests.get(f"{API_URL}/analytics/monthly-report?year={current_year}")
+        
+        # Test with 2024 (where we know data exists)
+        response_2024 = requests.get(f"{API_URL}/analytics/monthly-report?year=2024")
+        
+        print(f"Monthly report for {current_year}:")
+        print(json.dumps(response_current.json(), indent=2))
+        
+        print(f"Monthly report for 2024:")
+        print(json.dumps(response_2024.json(), indent=2))
+        
+        success = response_current.status_code == 200 and response_2024.status_code == 200
+        
+        return print_test_result("Monthly Report with Year Parameter", success, response_2024)
+    except Exception as e:
+        return print_test_result("Monthly Report with Year Parameter", False, error=str(e))
+
+# Test 23: Check for specific transaction (Lovisa)
+def test_check_for_lovisa():
+    try:
+        # Search for transactions with 'lovisa' in description
+        response = requests.get(f"{API_URL}/transactions")
+        success = response.status_code == 200
+        
+        transactions = response.json()
+        lovisa_transactions = [t for t in transactions if "lovisa" in t.get("description", "").lower()]
+        
+        print(f"Found {len(lovisa_transactions)} transactions with 'lovisa' in description:")
+        for transaction in lovisa_transactions:
+            print(f"  {transaction.get('date')}: {transaction.get('description')} - ${transaction.get('amount')}")
+        
+        return print_test_result("Check for Lovisa Transaction", success, response)
+    except Exception as e:
+        return print_test_result("Check for Lovisa Transaction", False, error=str(e))
+
 # Run all tests
 def run_all_tests():
     print("\n" + "=" * 40)
