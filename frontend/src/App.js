@@ -43,7 +43,8 @@ const Dashboard = () => {
     startDate: '',
     endDate: '',
     category: '',
-    pdfSource: ''
+    pdfSource: '',
+    accountType: ''
   });
   const [sortConfig, setSortConfig] = useState({
     field: 'date',
