@@ -168,6 +168,7 @@ def test_bulk_import():
         with open(temp_csv_path, 'rb') as f:
             files = {'file': ('transactions.csv', f, 'text/csv')}
             response = requests.post(f"{API_URL}/transactions/bulk-import", files=files)
+            print(f"Bulk import response: {response.text}")
         
         success = response.status_code == 200 and "message" in response.json()
         
@@ -177,6 +178,7 @@ def test_bulk_import():
         
         return print_test_result("Bulk Import Transactions", success, response)
     except Exception as e:
+        print(f"Bulk import exception: {str(e)}")
         return print_test_result("Bulk Import Transactions", False, error=str(e))
 
 # Test 7: Delete transaction
