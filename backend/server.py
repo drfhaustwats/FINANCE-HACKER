@@ -254,15 +254,26 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
             table_headers = ['TRANS   POST', 'DATE    DATE', 'SPEND CATEGORIES', 'AMOUNT($)']
             
             # Skip if it's clearly a header line
+            skip_reason = None
             if any(header in line_upper for header in header_keywords):
                 skip_line = True
+                skip_reason = f"Contains header keyword: {[h for h in header_keywords if h in line_upper]}"
             elif any(header in line_upper for header in table_headers):
                 skip_line = True
+                skip_reason = f"Contains table header: {[h for h in table_headers if h in line_upper]}"
             elif line_upper.strip() in ['TRANS', 'POST', 'DESCRIPTION', 'AMOUNT', 'SPEND CATEGORIES']:
                 skip_line = True
+                skip_reason = f"Exact match header: {line_upper.strip()}"
+            
+            # Special debug for Lovisa line
+            if 'lovisa' in line.lower():
+                print(f"🔍 LOVISA DEBUG: skip_line={skip_line}, skip_reason={skip_reason}")
+                print(f"🔍 LOVISA LINE_UPPER: '{line_upper}'")
+                print(f"🔍 LOVISA HEADER_KEYWORDS: {[h for h in header_keywords if h in line_upper]}")
+                print(f"🔍 LOVISA TABLE_HEADERS: {[h for h in table_headers if h in line_upper]}")
             
             if skip_line:
-                print(f"SKIPPED HEADER: {line}")
+                print(f"SKIPPED HEADER: {line} (Reason: {skip_reason})")
                 continue
             
             # More aggressive transaction detection
