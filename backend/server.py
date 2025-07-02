@@ -1,16 +1,16 @@
-from fastapi import FastAPI, APIRouter, UploadFile, File, Form, HTTPException, Depends
+from fastapi import FastAPI, APIRouter, UploadFile, File, Form, HTTPException, Depends, status
 from fastapi.responses import FileResponse, StreamingResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
 import uuid
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import pandas as pd
 import io
 import json
@@ -22,6 +22,9 @@ import tempfile
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
+from passlib.context import CryptContext
+from jose import JWTError, jwt
+import secrets
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
