@@ -126,8 +126,8 @@ def test_monthly_report_analytics():
         # Get current year
         current_year = datetime.now().year
         
-        # Test with explicit user_id parameter
-        response = requests.get(f"{API_URL}/analytics/monthly-report?year={current_year}&user_id=default_user")
+        # Test with explicit year parameter
+        response = requests.get(f"{API_URL}/analytics/monthly-report?year={current_year}")
         success = response.status_code == 200
         
         if success:
@@ -143,12 +143,14 @@ def test_monthly_report_analytics():
             
             if not has_data:
                 print("WARNING: Monthly report contains no spending data")
-                
-            # Test without user_id parameter (should use default)
-            response_no_user = requests.get(f"{API_URL}/analytics/monthly-report?year={current_year}")
-            if response_no_user.status_code != 200:
-                print("WARNING: Monthly report fails without explicit user_id parameter")
+            
+            # Test without year parameter (should return empty array)
+            response_no_year = requests.get(f"{API_URL}/analytics/monthly-report")
+            if response_no_year.status_code != 200:
+                print("WARNING: Monthly report fails without year parameter")
                 success = False
+            elif response_no_year.json():
+                print("WARNING: Monthly report returns data without year parameter")
             
             return print_test_result("Monthly Report Analytics", success, response, 
                                     details=f"Monthly report contains data for {len(monthly_data)} months, has_data={has_data}")
