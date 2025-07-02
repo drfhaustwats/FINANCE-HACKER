@@ -75,7 +75,7 @@ class Transaction(BaseModel):
     account_type: str = "credit_card"
     user_id: str
     household_id: Optional[str] = None
-    pdf_source: Optional[str] = None  # Track if imported from PDF
+    pdf_source: Optional[str] = None  # Track if imported from PDF and source filename
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class TransactionCreate(BaseModel):
