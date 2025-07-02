@@ -291,7 +291,8 @@ const Dashboard = () => {
       startDate: '',
       endDate: '',
       category: '',
-      pdfSource: ''
+      pdfSource: '',
+      accountType: ''
     });
   };
 
