@@ -125,7 +125,7 @@ def extract_text_from_pdf(file_content: bytes) -> str:
     
     return text
 
-def parse_transactions_from_text(text: str, user_id: str) -> List[dict]:
+def parse_transactions_from_text(text: str, user_id: str, source_filename: str = None) -> List[dict]:
     """Parse transactions from extracted PDF text - enhanced for multiple bank formats"""
     transactions = []
     
