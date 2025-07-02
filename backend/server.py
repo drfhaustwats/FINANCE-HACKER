@@ -159,82 +159,167 @@ def parse_transactions_from_text(text: str, user_id: str) -> List[dict]:
     
     for line in lines:
         line = line.strip()
-        if not line:
+        if not line or len(line) < 20:  # Skip very short lines
+            continue
+            
+        # Skip header lines
+        if any(header in line.upper() for header in ['TRANS', 'DATE', 'DESCRIPTION', 'AMOUNT', 'CATEGORY', 'SPEND CATEGORIES']):
             continue
             
         for pattern in patterns:
             matches = re.findall(pattern, line, re.IGNORECASE)
             for match in matches:
                 try:
-                    if len(match) == 4:
-                        date_str, _, description, amount_str = match
-                    elif len(match) == 3:
-                        date_str, description, amount_str = match
-                    else:
-                        continue
-                    
-                    # Clean and parse amount
-                    amount_str = re.sub(r'[^\d.]', '', amount_str)
-                    amount = float(amount_str)
-                    
-                    # Skip very small amounts (likely fees) or very large amounts (likely errors)
-                    if amount < 0.01 or amount > 10000:
-                        continue
-                    
-                    # Parse date - handle different formats
-                    transaction_date = None
-                    try:
-                        if '/' in date_str:
-                            if date_str.count('/') == 2:  # Full date
-                                transaction_date = datetime.strptime(date_str, '%m/%d/%Y').date()
-                            else:  # MM/DD format
-                                month, day = map(int, date_str.split('/'))
-                                transaction_date = date(current_year, month, day)
-                        elif '-' in date_str:  # YYYY-MM-DD format
-                            transaction_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-                        else:  # Mon DD format (like Nov 14)
-                            month_map = {
-                                'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-                                'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
-                            }
-                            parts = date_str.split()
-                            if len(parts) == 2:
-                                month_name, day = parts
-                                month = month_map.get(month_name[:3], None)
-                                if month:
-                                    transaction_date = date(current_year, month, int(day))
-                    except:
-                        continue
-                    
-                    if not transaction_date:
-                        continue
-                    
-                    # Clean description
-                    description = re.sub(r'\s+', ' ', description.strip())
-                    description = description[:100]  # Limit length
-                    
-                    # Auto-categorize based on description
-                    category = 'Personal and Household Expenses'  # Default
-                    description_lower = description.lower()
-                    
-                    for cat, keywords in category_keywords.items():
-                        if any(keyword in description_lower for keyword in keywords):
-                            category = cat
-                            break
-                    
-                    # Create transaction
-                    transaction = {
-                        'date': transaction_date.isoformat(),
-                        'description': description,
-                        'category': category,
-                        'amount': amount,
-                        'account_type': 'credit_card',
-                        'user_id': user_id,
-                        'pdf_source': 'pdf_import'
-                    }
-                    
-                    transactions.append(transaction)
-                    
+                    if len(match) == 5:
+                        # CIBC format: trans_date, post_date, description, category, amount
+                        trans_date_str, post_date_str, description, category_from_pdf, amount_str = match
+                        
+                        # Clean amount - ensure it's properly decimal formatted
+                        amount_str = re.sub(r'[^\d.]', '', amount_str)
+                        if '.' not in amount_str:
+                            continue  # Skip if no decimal point (likely not a proper amount)
+                        
+                        amount = float(amount_str)
+                        
+                        # Skip very small amounts (likely fees) or very large amounts (likely errors)
+                        if amount < 0.01 or amount > 50000:
+                            continue
+                        
+                        # Use trans_date for the transaction date
+                        date_str = trans_date_str
+                        
+                        # Clean description - remove extra spaces
+                        description = re.sub(r'\s+', ' ', description.strip())
+                        description = description[:100]  # Limit length
+                        
+                        # Parse date - handle different formats
+                        transaction_date = None
+                        try:
+                            if '/' in date_str:
+                                if date_str.count('/') == 2:  # Full date
+                                    transaction_date = datetime.strptime(date_str, '%m/%d/%Y').date()
+                                else:  # MM/DD format
+                                    month, day = map(int, date_str.split('/'))
+                                    transaction_date = date(current_year, month, day)
+                            elif '-' in date_str:  # YYYY-MM-DD format
+                                transaction_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                            else:  # Mon DD format (like Nov 14)
+                                month_map = {
+                                    'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+                                    'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+                                }
+                                parts = date_str.split()
+                                if len(parts) == 2:
+                                    month_name, day = parts
+                                    month = month_map.get(month_name[:3], None)
+                                    if month:
+                                        transaction_date = date(current_year, month, int(day))
+                        except:
+                            continue
+                        
+                        if not transaction_date:
+                            continue
+                        
+                        # Use category from PDF if it looks valid, otherwise auto-categorize
+                        category = category_from_pdf.strip() if category_from_pdf and len(category_from_pdf.strip()) > 2 else None
+                        
+                        # Auto-categorize based on description if no valid category from PDF
+                        if not category:
+                            description_lower = description.lower()
+                            category = 'Personal and Household Expenses'  # Default
+                            
+                            for cat, keywords in category_keywords.items():
+                                if any(keyword in description_lower for keyword in keywords):
+                                    category = cat
+                                    break
+                        
+                        # Create transaction
+                        transaction = {
+                            'date': transaction_date.isoformat(),
+                            'description': description,
+                            'category': category,
+                            'amount': amount,
+                            'account_type': 'credit_card',
+                            'user_id': user_id,
+                            'pdf_source': 'pdf_import'
+                        }
+                        
+                        transactions.append(transaction)
+                        print(f"Parsed: {description} -> ${amount} ({category})")
+                        
+                    elif len(match) == 4:
+                        # Other formats: date, description, category, amount OR date, description, amount
+                        if '.' in match[3]:  # Last item looks like an amount
+                            date_str, description, category_or_amount, amount_str = match
+                        else:
+                            date_str, description, amount_str = match[0], match[1], match[2]
+                            category_or_amount = None
+                        
+                        # Clean and parse amount
+                        amount_str = re.sub(r'[^\d.]', '', amount_str)
+                        if '.' not in amount_str:
+                            continue
+                        amount = float(amount_str)
+                        
+                        # Skip invalid amounts
+                        if amount < 0.01 or amount > 50000:
+                            continue
+                        
+                        # Parse date
+                        transaction_date = None
+                        try:
+                            if '/' in date_str:
+                                if date_str.count('/') == 2:
+                                    transaction_date = datetime.strptime(date_str, '%m/%d/%Y').date()
+                                else:
+                                    month, day = map(int, date_str.split('/'))
+                                    transaction_date = date(current_year, month, day)
+                            elif '-' in date_str:
+                                transaction_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                            else:  # Mon DD format
+                                month_map = {
+                                    'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+                                    'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+                                }
+                                parts = date_str.split()
+                                if len(parts) == 2:
+                                    month_name, day = parts
+                                    month = month_map.get(month_name[:3], None)
+                                    if month:
+                                        transaction_date = date(current_year, month, int(day))
+                        except:
+                            continue
+                        
+                        if not transaction_date:
+                            continue
+                        
+                        # Clean description
+                        description = re.sub(r'\s+', ' ', description.strip())
+                        description = description[:100]
+                        
+                        # Auto-categorize
+                        description_lower = description.lower()
+                        category = 'Personal and Household Expenses'
+                        
+                        for cat, keywords in category_keywords.items():
+                            if any(keyword in description_lower for keyword in keywords):
+                                category = cat
+                                break
+                        
+                        # Create transaction
+                        transaction = {
+                            'date': transaction_date.isoformat(),
+                            'description': description,
+                            'category': category,
+                            'amount': amount,
+                            'account_type': 'credit_card',
+                            'user_id': user_id,
+                            'pdf_source': 'pdf_import'
+                        }
+                        
+                        transactions.append(transaction)
+                        print(f"Parsed: {description} -> ${amount} ({category})")
+                        
                 except Exception as e:
                     logging.warning(f"Error parsing transaction from line: {line}, error: {e}")
                     continue
