@@ -718,6 +718,41 @@ async def delete_transaction(transaction_id: str, user_id: str = Depends(get_cur
         raise HTTPException(status_code=404, detail="Transaction not found")
     return {"message": "Transaction deleted successfully"}
 
+class TransactionUpdate(BaseModel):
+    category: Optional[str] = None
+    description: Optional[str] = None
+    amount: Optional[float] = None
+
+@api_router.put("/transactions/{transaction_id}")
+async def update_transaction(
+    transaction_id: str, 
+    transaction_update: TransactionUpdate,
+    user_id: str = Depends(get_current_user_id)
+):
+    """Update a transaction's category, description, or amount"""
+    update_data = {k: v for k, v in transaction_update.dict().items() if v is not None}
+    
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No update data provided")
+    
+    result = await db.transactions.update_one(
+        {"id": transaction_id, "user_id": user_id},
+        {"$set": update_data}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    # Return updated transaction
+    updated_transaction = await db.transactions.find_one({"id": transaction_id, "user_id": user_id})
+    if updated_transaction:
+        # Convert datetime to string for response
+        if 'created_at' in updated_transaction:
+            updated_transaction['created_at'] = updated_transaction['created_at'].isoformat()
+        return updated_transaction
+    else:
+        raise HTTPException(status_code=404, detail="Updated transaction not found")
+
 class BulkDeleteRequest(BaseModel):
     transaction_ids: List[str]
 
