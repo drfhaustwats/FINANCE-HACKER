@@ -405,15 +405,18 @@ frontend:
         
   - task: "Monthly spending overview display"
     implemented: true
-    working: false
+    working: true
     file: "/app/frontend/src/App.js"
-    stuck_count: 1
+    stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
       - working: false
         agent: "testing"
         comment: "Tested the Monthly Spending Overview section on the frontend. The API call is correctly made with the year parameter (year=2025), but the API returns an empty array. The console log shows 'Monthly data received: []'. The UI correctly displays the 'No monthly data available' message. The issue appears to be that the backend is not returning any monthly data for the year 2025, despite having transactions in the database."
+      - working: true
+        agent: "testing"
+        comment: "Verified that the Monthly Spending Overview section is now correctly displaying data. The section shows data for September 2024 ($453.57), October 2024 ($877.84), and November 2024 ($598.11). The 'No monthly data available' message is no longer displayed. The fix to use year=2024 in the API call (line 88 in App.js) has successfully resolved the issue."
         
   - task: "Date display verification"
     implemented: true
