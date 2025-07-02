@@ -130,15 +130,16 @@ def parse_transactions_from_text(text: str, user_id: str) -> List[dict]:
     transactions = []
     
     # Enhanced patterns for different bank statement formats
+    # Format: trans_date, post_date, description, category, amount
     patterns = [
-        # CIBC Pattern - matches your statement format
-        r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+([^$]+?)\s+\$?(\d+\.?\d*)',
-        # Generic pattern for date amount description
-        r'(\d{1,2}/\d{1,2}/\d{4})\s+([^$]+?)\s+\$?(\d+\.?\d*)',
-        # Another common format
-        r'(\d{4}-\d{2}-\d{2})\s+([^$]+?)\s+\$?(\d+\.?\d*)',
-        # Tab-separated format
-        r'(\d{1,2}/\d{1,2})\s+(\d{1,2}/\d{1,2})\s+([^\t]+)\s+(\d+\.\d{2})'
+        # CIBC Pattern - precise format: Date Date Description Category Amount
+        r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+([A-Z0-9\s\#\*\.\-\/]+?)\s+([A-Za-z\s,&]+?)\s+\$?(\d+\.\d{2})(?:\s|$)',
+        # CIBC Alternative - with dollar sign clearly at end
+        r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+([A-Z0-9\s\#\*\.\-\/]+?)\s+([A-Za-z\s,&]+?)\s+\$(\d+\.\d{2})',
+        # Generic pattern with proper amount at end
+        r'(\d{1,2}/\d{1,2}/\d{4})\s+([^$]+?)\s+([A-Za-z\s,&]+?)\s+\$(\d+\.\d{2})(?:\s|$)',
+        # Tab or multiple space separated
+        r'(\d{4}-\d{2}-\d{2})\s+([^\t$]+?)\s+([A-Za-z\s,&]+?)\s+\$?(\d+\.\d{2})(?:\s|$)'
     ]
     
     # Category mapping based on description keywords
