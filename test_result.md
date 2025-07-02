@@ -429,6 +429,18 @@ frontend:
       - working: true
         agent: "testing"
         comment: "Verified that the DOLLARAMA #594 transaction date is correctly displayed as 'Nov 14, 2024' in the Transactions tab. The timezone fix in the formatDate function is working properly. The date is no longer offset by -1 day."
+        
+  - task: "Inline category editing functionality"
+    implemented: true
+    working: false
+    file: "/app/frontend/src/App.js"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "testing"
+        comment: "Attempted to test the inline category editing functionality but encountered a critical issue: The Transactions tab is not rendering the transaction table in the UI, even though the API is correctly returning transaction data. The API response includes the Lovisa Alberta AB transaction with the correct date (2024-10-13) and amount ($29.39), but the table is not being displayed in the UI. This appears to be a frontend rendering issue that needs to be fixed before we can test the category editing feature."
 
 metadata:
   created_by: "testing_agent"
