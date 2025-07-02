@@ -208,6 +208,18 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 async def get_current_user_id(current_user: dict = Depends(get_current_user)):
     return current_user["id"]
 
+# Migration compatibility function  
+async def get_current_user_id_flexible(authorization: Optional[str] = Depends(oauth2_scheme)):
+    """Flexible user ID function for migration - supports both auth and legacy"""
+    if not authorization:
+        return "default_user"  # Legacy support
+    
+    try:
+        current_user = await get_current_user(authorization)
+        return current_user["id"]
+    except HTTPException:
+        return "default_user"  # Fallback for invalid tokens
+
 # PDF Processing Functions
 def extract_text_from_pdf(file_content: bytes) -> str:
     """Extract text from PDF using multiple methods for better reliability"""
