@@ -440,7 +440,7 @@ test_plan:
     - "PDF transaction extraction completeness"
     - "PDF import functionality"
   stuck_tasks:
-    - "Date extraction accuracy"
+    - "Monthly spending overview display"
     - "PDF transaction extraction completeness"
   test_all: false
   test_priority: "stuck_first"
