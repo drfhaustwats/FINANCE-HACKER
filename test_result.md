@@ -327,7 +327,7 @@ backend:
     file: "/app/frontend/src/App.js"
     stuck_count: 1
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "user"
@@ -335,6 +335,9 @@ backend:
       - working: "NA"
         agent: "main"
         comment: "Issue likely related to user_id mismatch between frontend calls and backend analytics endpoints. Frontend doesn't pass user_id but backend requires it."
+      - working: false
+        agent: "testing"
+        comment: "Confirmed that the monthly report endpoint (/api/analytics/monthly-report) is working correctly but returns an empty array. The issue is that there are no transactions grouped by month in the response. This is likely because the frontend is not passing a user_id parameter, and the backend is using the default user_id from the Depends(get_current_user_id) function. The endpoint works with the default user_id, but there's no data being returned because the monthly grouping logic may not be working correctly."
 
   - task: "Date extraction accuracy"
     implemented: true
