@@ -267,6 +267,8 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
             has_month_day = re.search(r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}', line)
             has_decimal_amount = re.search(r'\d+\.\d{2}', line)
             
+            transaction_match = None  # Initialize here
+            
             if has_month_day and has_decimal_amount:
                 print(f"FOUND TRANSACTION LINE {line_num}: {line}")
                 
