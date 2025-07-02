@@ -526,8 +526,8 @@ async def import_transactions_from_pdf(
         if not text.strip():
             raise HTTPException(status_code=400, detail="Could not extract text from PDF")
         
-        # Parse transactions from text
-        parsed_transactions = parse_transactions_from_text(text, user_id)
+        # Parse transactions from text - pass the filename
+        parsed_transactions = parse_transactions_from_text(text, user_id, file.filename)
         
         if not parsed_transactions:
             return {
@@ -563,10 +563,11 @@ async def import_transactions_from_pdf(
             await db.transactions.insert_many(new_transactions)
         
         return {
-            "message": f"Successfully processed PDF",
+            "message": f"Successfully processed PDF: {file.filename}",
             "imported_count": len(new_transactions),
             "duplicate_count": duplicate_count,
-            "total_found": len(parsed_transactions)
+            "total_found": len(parsed_transactions),
+            "source_file": file.filename
         }
         
     except Exception as e:
