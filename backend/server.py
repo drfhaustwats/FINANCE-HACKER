@@ -208,6 +208,28 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 async def get_current_user_id(current_user: dict = Depends(get_current_user)):
     return current_user["id"]
 
+# Enhanced function for multi-user support
+async def get_view_user_id(
+    view_user_id: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get the user ID for data viewing - supports switching between household members"""
+    if not view_user_id or view_user_id == 'personal':
+        return current_user["id"]
+    
+    if view_user_id == 'family_view':
+        # Return special identifier for family view
+        return 'family_view'
+    
+    # Check if the requested user is in the same household
+    if current_user.get("household_id"):
+        target_user = await db.users.find_one({"id": view_user_id})
+        if target_user and target_user.get("household_id") == current_user["household_id"]:
+            return view_user_id
+    
+    # Default to current user if not authorized
+    return current_user["id"]
+
 # Migration compatibility function  
 async def get_current_user_id_flexible(authorization: Optional[str] = Depends(oauth2_scheme)):
     """Flexible user ID function for migration - supports both auth and legacy"""
