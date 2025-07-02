@@ -60,7 +60,6 @@ const Dashboard = () => {
   const [tempTransactionCategory, setTempTransactionCategory] = useState('');
 
   // Category editing state
-  const [editingCategory, setEditingCategory] = useState(null);
   const [tempCategory, setTempCategory] = useState('');
 
   const defaultCategories = [
