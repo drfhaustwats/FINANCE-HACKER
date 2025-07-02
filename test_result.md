@@ -453,8 +453,10 @@ test_plan:
     - "Date extraction accuracy"
     - "PDF transaction extraction completeness"
     - "PDF import functionality"
+    - "Inline category editing functionality"
   stuck_tasks:
     - "PDF transaction extraction completeness"
+    - "Inline category editing functionality"
   test_all: false
   test_priority: "stuck_first"
 
