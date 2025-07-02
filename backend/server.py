@@ -385,6 +385,9 @@ def parse_cibc_debit_transactions(text: str, user_id: str, source_filename: str,
             # Categorize transaction
             category = clean_category("", description)
             
+            # Create enhanced source name
+            enhanced_source = generate_source_name(user_name, 'debit', source_filename)
+            
             # Create transaction
             transaction = {
                 'date': transaction_date.isoformat(),
@@ -393,7 +396,7 @@ def parse_cibc_debit_transactions(text: str, user_id: str, source_filename: str,
                 'amount': transaction_amount,
                 'account_type': 'debit',
                 'user_id': user_id,
-                'pdf_source': source_filename or 'pdf_import',
+                'pdf_source': enhanced_source,
                 'user_name': user_name
             }
             
