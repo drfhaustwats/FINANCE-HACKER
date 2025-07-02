@@ -487,6 +487,9 @@ async def get_transactions(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     category: Optional[str] = None,
+    pdf_source: Optional[str] = None,
+    sort_by: Optional[str] = "date",
+    sort_order: Optional[str] = "desc",
     user_id: str = Depends(get_current_user_id)
 ):
     filter_dict = {"user_id": user_id}
@@ -500,8 +503,14 @@ async def get_transactions(
             filter_dict["date"] = {"$lte": end_date}
     if category:
         filter_dict["category"] = category
+    if pdf_source:
+        filter_dict["pdf_source"] = pdf_source
     
-    transactions = await db.transactions.find(filter_dict).sort("date", -1).to_list(1000)
+    # Handle sorting
+    sort_direction = -1 if sort_order == "desc" else 1
+    sort_field = sort_by if sort_by in ["date", "amount", "description", "category"] else "date"
+    
+    transactions = await db.transactions.find(filter_dict).sort(sort_field, sort_direction).to_list(1000)
     return [Transaction(**transaction) for transaction in transactions]
 
 @api_router.delete("/transactions/{transaction_id}")
