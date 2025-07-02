@@ -70,17 +70,28 @@ const Dashboard = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [transactionsRes, monthlyRes, categoryRes, categoriesRes] = await Promise.all([
-        axios.get(`${API}/transactions`),
+      // Build query parameters for transactions
+      const transactionParams = new URLSearchParams();
+      if (filters.startDate) transactionParams.append('start_date', filters.startDate);
+      if (filters.endDate) transactionParams.append('end_date', filters.endDate);
+      if (filters.category) transactionParams.append('category', filters.category);
+      if (filters.pdfSource) transactionParams.append('pdf_source', filters.pdfSource);
+      transactionParams.append('sort_by', sortConfig.field);
+      transactionParams.append('sort_order', sortConfig.direction);
+
+      const [transactionsRes, monthlyRes, categoryRes, categoriesRes, sourcesRes] = await Promise.all([
+        axios.get(`${API}/transactions?${transactionParams.toString()}`),
         axios.get(`${API}/analytics/monthly-report`),
         axios.get(`${API}/analytics/category-breakdown`),
-        axios.get(`${API}/categories`)
+        axios.get(`${API}/categories`),
+        axios.get(`${API}/transactions/sources`)
       ]);
       
       setTransactions(transactionsRes.data);
       setMonthlyReports(monthlyRes.data);
       setCategoryBreakdown(categoryRes.data);
       setCategories(categoriesRes.data);
+      setPdfSources(sourcesRes.data.sources || []);
     } catch (error) {
       console.error('Error fetching data:', error);
     }
