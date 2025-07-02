@@ -249,51 +249,77 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
             ]):
                 continue
             
-            # Look for transaction patterns based on your PDF
-            # Pattern: Oct 22  Oct 24  OPENAI *CHATGPT SUBSCR HTTPSOPENAI.CA  Foreign Currency Transactions  29.82
+            # Look for transaction patterns - be more comprehensive
+            # Debug: Check if this line looks like a transaction
+            has_date_pattern = re.search(r'\w{3}\s+\d{1,2}', line)
+            has_amount = re.search(r'\d+\.\d{2}', line)
             
-            # Try multiple patterns to catch different formatting
-            transaction_match = None
-            
-            # Pattern 1: With clear category separation (multiple spaces)
-            transaction_match = re.search(
-                r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+([A-Z0-9\*\#\s\.\-\/\&\(\)]+?)\s{2,}([A-Za-z\s,&]+?)\s+(\d+\.\d{2})(?:\s|$)',
-                line
-            )
-            
-            # Pattern 2: If pattern 1 doesn't work, try with single space separation
-            if not transaction_match:
-                transaction_match = re.search(
-                    r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+(.+?)\s+([A-Z][a-z]+(?:\s+[a-z]+)*(?:\s+and\s+[A-Z][a-z]+)*)\s+(\d+\.\d{2})(?:\s|$)',
-                    line
-                )
-            
-            # Pattern 3: Most permissive - just find date-date-text-amount
-            if not transaction_match:
-                transaction_match = re.search(
-                    r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+(.+?)\s+(\d+\.\d{2})(?:\s|$)',
-                    line
-                )
-                if transaction_match:
-                    # For this pattern, we need to manually separate description and category
-                    trans_date_str, post_date_str, desc_and_cat, amount_str = transaction_match.groups()
-                    # Try to find where description ends and category begins
-                    # Look for known category keywords at the end
-                    category_str = ""
-                    description = desc_and_cat.strip()
+            if has_date_pattern and has_amount:
+                print(f"POTENTIAL TRANSACTION LINE: {line}")
+                
+                transaction_match = None
+                
+                # Strategy 1: Look for clear amount at the end
+                amount_at_end = re.search(r'(\d+\.\d{2})(?:\s*)$', line)
+                if amount_at_end:
+                    amount_str = amount_at_end.group(1)
+                    line_without_amount = line[:amount_at_end.start()].strip()
                     
-                    # Check if line ends with known categories
-                    for known_cat in ['Retail and Grocery', 'Restaurants', 'Transportation', 
-                                    'Home and Office Improvement', 'Hotel, Entertainment and Recreation',
-                                    'Professional and Financial Services', 'Health and Education',
-                                    'Foreign Currency Transactions', 'Personal and Household Expenses']:
-                        if desc_and_cat.endswith(known_cat):
-                            category_str = known_cat
-                            description = desc_and_cat[:-len(known_cat)].strip()
-                            break
+                    # Now extract dates from the beginning
+                    date_pattern = re.match(r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+(.+)', line_without_amount)
+                    if date_pattern:
+                        trans_date_str, post_date_str, description_and_category = date_pattern.groups()
+                        
+                        # Try to split description and category
+                        desc_and_cat = description_and_category.strip()
+                        
+                        # Look for known categories at the end
+                        category_str = ""
+                        description = desc_and_cat
+                        
+                        # Check for category keywords at the end
+                        known_categories = [
+                            'Foreign Currency Transactions',
+                            'Hotel, Entertainment and Recreation', 
+                            'Professional and Financial Services',
+                            'Home and Office Improvement',
+                            'Health and Education',
+                            'Retail and Grocery',
+                            'Transportation',
+                            'Restaurants',
+                            'Personal and Household Expenses'
+                        ]
+                        
+                        for cat in known_categories:
+                            if desc_and_cat.endswith(cat):
+                                category_str = cat
+                                description = desc_and_cat[:-len(cat)].strip()
+                                break
+                        
+                        transaction_match = (trans_date_str, post_date_str, description, category_str, amount_str)
+                        print(f"STRATEGY 1 PARSED: Trans={trans_date_str}, Desc='{description}', Cat='{category_str}', Amt={amount_str}")
+                
+                # Strategy 2: If strategy 1 didn't work, use original regex patterns
+                if not transaction_match:
+                    # Pattern 1: With clear category separation (multiple spaces)
+                    transaction_match = re.search(
+                        r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+([A-Z0-9\*\#\s\.\-\/\&\(\)]+?)\s{2,}([A-Za-z\s,&]+?)\s+(\d+\.\d{2})(?:\s|$)',
+                        line
+                    )
                     
-                    transaction_match = (trans_date_str, post_date_str, description, category_str, amount_str)
+                    if transaction_match:
+                        print(f"STRATEGY 2A MATCH: {transaction_match.groups()}")
+                    
+                    # Pattern 2: If pattern 1 doesn't work, try with single space separation
+                    if not transaction_match:
+                        transaction_match = re.search(
+                            r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+(.+?)\s+([A-Z][a-z]+(?:\s+[a-z]+)*(?:\s+and\s+[A-Z][a-z]+)*)\s+(\d+\.\d{2})(?:\s|$)',
+                            line
+                        )
+                        if transaction_match:
+                            print(f"STRATEGY 2B MATCH: {transaction_match.groups()}")
             
+            # If we found a transaction match, process it
             if transaction_match:
                 trans_date_str, post_date_str, description, category_str, amount_str = transaction_match.groups()
                 
