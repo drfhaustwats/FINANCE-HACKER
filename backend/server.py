@@ -242,11 +242,24 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
             if not line or len(line) < 15:
                 continue
                 
-            # Skip header lines and section headers
-            if any(header in line.upper() for header in [
-                'TRANS', 'POST', 'DESCRIPTION', 'SPEND CATEGORIES', 'AMOUNT',
-                'CARD NUMBER', 'PAGE', 'CIBC', 'DIVIDEND', 'VISA', 'YOUR PAYMENTS', 'YOUR NEW CHARGES'
-            ]):
+            # Skip header lines and section headers - be more specific
+            skip_line = False
+            line_upper = line.upper()
+            
+            # Only skip if the line is clearly a header (contains multiple header keywords or exact matches)
+            header_keywords = ['CARD NUMBER', 'PAGE', 'CIBC', 'DIVIDEND', 'VISA', 'YOUR PAYMENTS', 'YOUR NEW CHARGES']
+            table_headers = ['TRANS   POST', 'DATE    DATE', 'SPEND CATEGORIES', 'AMOUNT($)']
+            
+            # Skip if it's clearly a header line
+            if any(header in line_upper for header in header_keywords):
+                skip_line = True
+            elif any(header in line_upper for header in table_headers):
+                skip_line = True
+            elif line_upper.strip() in ['TRANS', 'POST', 'DESCRIPTION', 'AMOUNT', 'SPEND CATEGORIES']:
+                skip_line = True
+            
+            if skip_line:
+                print(f"SKIPPED HEADER: {line}")
                 continue
             
             # More aggressive transaction detection
