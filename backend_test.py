@@ -157,10 +157,23 @@ def test_bulk_import():
         writer.writerow(["2024-10-17", "UBER RIDE", "Transportation", "12.50", "credit_card"])
         
         csv_data.seek(0)
-        files = {'file': ('transactions.csv', csv_data.getvalue(), 'text/csv')}
+        csv_content = csv_data.getvalue()
         
-        response = requests.post(f"{API_URL}/transactions/bulk-import", files=files)
+        # Create a temporary CSV file
+        temp_csv_path = '/tmp/transactions.csv'
+        with open(temp_csv_path, 'w') as f:
+            f.write(csv_content)
+        
+        # Use the file from disk
+        with open(temp_csv_path, 'rb') as f:
+            files = {'file': ('transactions.csv', f, 'text/csv')}
+            response = requests.post(f"{API_URL}/transactions/bulk-import", files=files)
+        
         success = response.status_code == 200 and "message" in response.json()
+        
+        # Clean up
+        if os.path.exists(temp_csv_path):
+            os.remove(temp_csv_path)
         
         return print_test_result("Bulk Import Transactions", success, response)
     except Exception as e:
