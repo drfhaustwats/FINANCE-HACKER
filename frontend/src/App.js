@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from "react";
-import "./App.css";
-import axios from "axios";
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import './App.css';
+import { AuthProvider, useAuth } from './AuthContext';
+import AuthPage from './components/AuthPage';
+import UserHeader from './components/UserHeader';
+import LoadingScreen from './components/LoadingScreen';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-// Dashboard Components
-const Dashboard = () => {
+// Main Dashboard Component (wrapped with authentication)
+function Dashboard() {
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]);
   const [monthlyReports, setMonthlyReports] = useState([]);
