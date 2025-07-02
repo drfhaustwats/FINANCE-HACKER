@@ -213,10 +213,17 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                                     month_name, day = parts
                                     month = month_map.get(month_name[:3], None)
                                     if month:
-                                        # Use current year, but adjust if month suggests it should be previous year
+                                        # Smart year detection: if month/day is in the future relative to now, use previous year
                                         year = current_year
-                                        if month > datetime.now().month + 1:  # If month is far in future, probably last year
+                                        today = datetime.now().date()
+                                        
+                                        # Create a candidate date for this year
+                                        candidate_date = date(year, month, int(day))
+                                        
+                                        # If the candidate date is more than 30 days in the future, assume it's from last year
+                                        if candidate_date > today and (candidate_date - today).days > 30:
                                             year = current_year - 1
+                                        
                                         transaction_date = date(year, month, int(day))
                         except:
                             continue
