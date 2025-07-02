@@ -360,3 +360,5 @@ agent_communication:
     message: "Completed testing of all backend API endpoints. All high priority endpoints are working correctly. The bulk import functionality (medium priority) has an issue with date handling that needs to be fixed. The issue is that when pandas reads the CSV file, it converts date strings to datetime.date objects, but these aren't properly converted to strings before being inserted into MongoDB."
   - agent: "testing"
     message: "Completed comprehensive testing of all backend API endpoints including the new features in v2.0. All endpoints are working correctly, including PDF import functionality, category management, user support, and enhanced analytics. The bulk import functionality issue has been fixed in the server.py code."
+  - agent: "main"
+    message: "User reported three critical bugs: 1) Monthly spending overview isn't populated on frontend, 2) All extracted dates are offset by -1 day, 3) Need to evaluate debit card statement integration. Starting investigation of these issues before implementing multi-user support."
