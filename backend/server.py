@@ -144,11 +144,11 @@ def parse_transactions_from_text(text: str, user_id: str) -> List[dict]:
     
     # Category mapping based on description keywords
     category_keywords = {
-        'Retail and Grocery': ['superstore', 'grocery', 'dollarama', 'walmart', 'costco', 'loblaws', 'metro', 'sobeys'],
-        'Restaurants': ['restaurant', 'coffee', 'starbucks', 'tim hortons', 'mcdonalds', 'pizza', 'food', 'dining', 'cafe'],
-        'Transportation': ['lyft', 'uber', 'taxi', 'gas', 'petro', 'shell', 'esso', 'transit'],
-        'Home and Office Improvement': ['home depot', 'lowes', 'staples', 'canadian tire', 'ikea', 'office'],
-        'Hotel, Entertainment and Recreation': ['hotel', 'movie', 'netflix', 'spotify', 'apple.com', 'entertainment'],
+        'Retail and Grocery': ['superstore', 'grocery', 'dollarama', 'walmart', 'costco', 'loblaws', 'metro', 'sobeys', 'winniersho', 'john & ross'],
+        'Restaurants': ['restaurant', 'coffee', 'starbucks', 'tim hortons', 'mcdonalds', 'pizza', 'food', 'dining', 'cafe', 'sky 360', 'sky360'],
+        'Transportation': ['lyft', 'uber', 'taxi', 'gas', 'petro', 'shell', 'esso', 'transit', 'ride'],
+        'Home and Office Improvement': ['home depot', 'lowes', 'staples', 'canadian tire', 'ikea', 'office', 'stokes'],
+        'Hotel, Entertainment and Recreation': ['hotel', 'movie', 'netflix', 'spotify', 'apple.com', 'entertainment', 'apple.com/bill'],
         'Professional and Financial Services': ['bank', 'fee', 'transfer', 'mortgage', 'insurance', 'legal'],
         'Health and Education': ['pharmacy', 'doctor', 'dental', 'hospital', 'school', 'university'],
         'Foreign Currency Transactions': ['foreign', 'currency', 'exchange', 'international']
