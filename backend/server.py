@@ -1755,6 +1755,69 @@ async def get_user_household(current_user: dict = Depends(get_current_user)):
         return Household(**household)
     return None
 
+@auth_router.get("/household/members", response_model=List[User])
+async def get_household_members(current_user: dict = Depends(get_current_user)):
+    if not current_user.get("household_id"):
+        return []
+    
+    # Get all users in the same household
+    users = await db.users.find({"household_id": current_user["household_id"]}).to_list(100)
+    
+    # Return users without password hashes
+    return [User(**{k: v for k, v in user.items() if k != "password_hash"}) for user in users]
+
+@auth_router.post("/household/invite")
+async def invite_household_member(
+    invitation: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    if not current_user.get("household_id"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not part of a household"
+        )
+    
+    email = invitation.get("email")
+    role = invitation.get("role", "user")
+    
+    # Check if user already exists
+    existing_user = await get_user_by_email(email)
+    if existing_user:
+        if existing_user.get("household_id"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is already part of a household"
+            )
+        
+        # Add existing user to household
+        await db.users.update_one(
+            {"id": existing_user["id"]},
+            {"$set": {"household_id": current_user["household_id"], "role": role}}
+        )
+        
+        # Add user to household members list
+        await db.households.update_one(
+            {"id": current_user["household_id"]},
+            {"$addToSet": {"members": existing_user["id"]}}
+        )
+        
+        return {"message": "User added to household successfully", "user_id": existing_user["id"]}
+    else:
+        # Create invitation record (for future implementation)
+        invitation_doc = {
+            "id": str(uuid.uuid4()),
+            "email": email,
+            "household_id": current_user["household_id"],
+            "invited_by": current_user["id"],
+            "role": role,
+            "status": "pending",
+            "created_at": datetime.utcnow()
+        }
+        
+        await db.invitations.insert_one(invitation_doc)
+        
+        return {"message": "Invitation sent", "invitation_id": invitation_doc["id"]}
+
 # Legacy endpoint for backward compatibility (will be removed later)
 async def get_current_user_id_legacy():
     """Legacy function for backward compatibility during migration"""
