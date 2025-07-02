@@ -51,6 +51,10 @@ const Dashboard = () => {
   });
   const [pdfSources, setPdfSources] = useState([]);
 
+  // Bulk selection state
+  const [selectedTransactions, setSelectedTransactions] = useState(new Set());
+  const [selectAll, setSelectAll] = useState(false);
+
   const defaultCategories = [
     'Retail and Grocery',
     'Restaurants',
