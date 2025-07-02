@@ -192,7 +192,7 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                         description = re.sub(r'\s+', ' ', description.strip())
                         description = description[:100]  # Limit length
                         
-                        # Parse date - handle different formats
+                        # Parse date - handle different formats with timezone awareness
                         transaction_date = None
                         try:
                             if '/' in date_str:
@@ -213,7 +213,11 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                                     month_name, day = parts
                                     month = month_map.get(month_name[:3], None)
                                     if month:
-                                        transaction_date = date(current_year, month, int(day))
+                                        # Use current year, but adjust if month suggests it should be previous year
+                                        year = current_year
+                                        if month > datetime.now().month + 1:  # If month is far in future, probably last year
+                                            year = current_year - 1
+                                        transaction_date = date(year, month, int(day))
                         except:
                             continue
                         
