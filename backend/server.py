@@ -332,15 +332,20 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                     print(f"❌ Error parsing transaction from line: {line}, error: {e}")
                     continue
     
-    # Remove duplicates based on date, description, and amount
+    # Remove duplicates based on date, description (first few words), and amount
     seen = set()
     unique_transactions = []
     for transaction in transactions:
-        key = (transaction['date'], transaction['description'], transaction['amount'])
+        # Create a key using date, first few words of description, and amount
+        desc_key = ' '.join(transaction['description'].split()[:3])  # First 3 words
+        key = (transaction['date'], desc_key, transaction['amount'])
         if key not in seen:
             seen.add(key)
             unique_transactions.append(transaction)
+        else:
+            print(f"Skipping duplicate: {transaction['description']} on {transaction['date']}")
     
+    print(f"\nTotal parsed: {len(transactions)}, Unique: {len(unique_transactions)}")
     return unique_transactions
 
 # Helper function to get user (for now, use default user)
