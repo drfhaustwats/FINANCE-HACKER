@@ -188,6 +188,34 @@ const Dashboard = () => {
     }
   };
 
+  const handleSort = (field) => {
+    setSortConfig(prev => ({
+      field,
+      direction: prev.field === field && prev.direction === 'desc' ? 'asc' : 'desc'
+    }));
+  };
+
+  const handleFilterChange = (filterName, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [filterName]: value
+    }));
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      startDate: '',
+      endDate: '',
+      category: '',
+      pdfSource: ''
+    });
+  };
+
+  // Auto-fetch data when filters or sorting changes
+  useEffect(() => {
+    fetchData();
+  }, [filters, sortConfig]);
+
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-CA', {
       style: 'currency',
