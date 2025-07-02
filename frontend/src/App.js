@@ -701,14 +701,40 @@ const Dashboard = () => {
                 <h3 className="text-lg font-medium text-gray-900">
                   Transactions ({transactions.length} {filters.startDate || filters.endDate || filters.category || filters.pdfSource ? 'filtered' : 'total'})
                 </h3>
-                <div className="text-sm text-gray-600">
-                  PDF Imports: {transactions.filter(t => t.pdf_source && t.pdf_source !== 'Manual').length} | Manual: {transactions.filter(t => !t.pdf_source || t.pdf_source === 'Manual').length}
+                <div className="flex items-center space-x-4">
+                  <div className="text-sm text-gray-600">
+                    PDF Imports: {transactions.filter(t => t.pdf_source && t.pdf_source !== 'Manual').length} | Manual: {transactions.filter(t => !t.pdf_source || t.pdf_source === 'Manual').length}
+                  </div>
+                  {selectedTransactions.size > 0 && (
+                    <button
+                      onClick={handleBulkDelete}
+                      className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                    >
+                      Delete Selected ({selectedTransactions.size})
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={selectAll}
+                            onChange={handleSelectAll}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <button
+                            onClick={handleSelectAll}
+                            className="text-xs text-blue-600 hover:text-blue-800"
+                          >
+                            {selectAll ? 'None' : 'All'}
+                          </button>
+                        </div>
+                      </th>
                       <th 
                         onClick={() => handleSort('date')}
                         className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
@@ -739,7 +765,18 @@ const Dashboard = () => {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {transactions.map((transaction) => (
-                      <tr key={transaction.id} className="hover:bg-gray-50">
+                      <tr 
+                        key={transaction.id} 
+                        className={`hover:bg-gray-50 ${selectedTransactions.has(transaction.id) ? 'bg-blue-50' : ''}`}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            checked={selectedTransactions.has(transaction.id)}
+                            onChange={() => handleSelectTransaction(transaction.id)}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {formatDate(transaction.date)}
                         </td>
