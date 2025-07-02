@@ -392,6 +392,9 @@ backend:
       - working: true
         agent: "main"
         comment: "FIXED! Root cause identified: 'LOVISA' contains 'VISA' substring, causing header detection logic to incorrectly skip the transaction line. Updated header keywords to use word boundaries (\\bVISA\\b) instead of substring matching. Now correctly parses 16 transactions including Lovisa."
+      - working: true
+        agent: "testing"
+        comment: "Verified that the word boundary fix for header detection is working correctly. Created a test PDF with transactions containing 'VISA' as a substring (like 'LOVISA', 'ADVISATECH', 'REVISAGE') and confirmed they are correctly parsed. Also verified that actual VISA headers are still properly skipped. The Lovisa transaction is now correctly extracted and stored in the database with the proper date (2024-10-13) and amount ($29.39)."
 
 frontend:
   - task: "Frontend testing"
