@@ -785,5 +785,97 @@ def run_all_tests():
     
     return all_passed
 
+# Test 24: Verify word boundary fix for header detection
+def test_word_boundary_fix():
+    try:
+        # Create a test PDF with specific content to test the word boundary fix
+        pdf_path = '/tmp/test_word_boundary.pdf'
+        
+        # Create a PDF with a line containing "VISA" as a substring (like "LOVISA")
+        c = canvas.Canvas(pdf_path, pagesize=letter)
+        c.setFont("Helvetica", 12)
+        
+        # Add a title
+        c.drawString(100, 750, "CIBC DIVIDEND VISA INFINITE CARD")
+        c.drawString(100, 730, "Account: XXXX-XXXX-XXXX-1234")
+        c.drawString(100, 710, "Statement Period: October 15 to November 15, 2024")
+        c.drawString(100, 690, "JOHN DOE")
+        
+        # Add transaction headers
+        c.drawString(100, 650, "TRANS   POST    DESCRIPTION                           SPEND CATEGORIES        AMOUNT")
+        c.drawString(100, 630, "--------------------------------------------------------------------------------")
+        
+        # Add transactions with "VISA" as a substring in different contexts
+        transactions = [
+            ("Oct 13", "Oct 15", "LOVISA ALBERTA AB", "Retail and Grocery", "29.39"),  # Should be parsed (contains "VISA")
+            ("Oct 16", "Oct 17", "VISA PAYMENT THANK YOU", "Payment", "100.00"),  # Should be skipped (is a header)
+            ("Oct 18", "Oct 19", "ADVISATECH SOLUTIONS", "Professional Services", "45.99"),  # Should be parsed (contains "VISA")
+            ("Oct 20", "Oct 21", "VISA INTERNATIONAL FEE", "Fees", "2.50"),  # Should be skipped (is a header)
+            ("Oct 22", "Oct 23", "REVISAGE BEAUTY SALON", "Personal Care", "75.00")  # Should be parsed (contains "VISA")
+        ]
+        
+        y_position = 610
+        for trans in transactions:
+            c.drawString(100, y_position, f"{trans[0]}    {trans[1]}    {trans[2]}    {trans[3]}    {trans[4]}")
+            y_position -= 20
+        
+        c.save()
+        print(f"Created test PDF at {pdf_path}")
+        
+        # Upload the PDF file
+        with open(pdf_path, 'rb') as f:
+            files = {'file': ('test_word_boundary.pdf', f, 'application/pdf')}
+            response = requests.post(f"{API_URL}/transactions/pdf-import", files=files)
+        
+        success = response.status_code == 200 and "message" in response.json()
+        
+        # Check if the correct transactions were extracted
+        if success:
+            # Get all transactions
+            transactions_response = requests.get(f"{API_URL}/transactions")
+            if transactions_response.status_code == 200:
+                transactions = transactions_response.json()
+                
+                # Filter for transactions from our test PDF
+                test_pdf_transactions = [t for t in transactions if t.get("pdf_source") == "test_word_boundary.pdf"]
+                
+                # We should have 3 transactions (LOVISA, ADVISATECH, REVISAGE)
+                # and not the 2 VISA header lines
+                expected_descriptions = ["LOVISA ALBERTA AB", "ADVISATECH SOLUTIONS", "REVISAGE BEAUTY SALON"]
+                unexpected_descriptions = ["VISA PAYMENT THANK YOU", "VISA INTERNATIONAL FEE"]
+                
+                found_expected = []
+                found_unexpected = []
+                
+                for transaction in test_pdf_transactions:
+                    desc = transaction.get("description", "")
+                    if any(expected in desc for expected in expected_descriptions):
+                        found_expected.append(desc)
+                    if any(unexpected in desc for unexpected in unexpected_descriptions):
+                        found_unexpected.append(desc)
+                
+                print(f"Found {len(test_pdf_transactions)} transactions from test PDF")
+                print(f"Found expected transactions: {found_expected}")
+                print(f"Found unexpected transactions: {found_unexpected}")
+                
+                # Check if we found all expected transactions
+                if len(found_expected) != len(expected_descriptions):
+                    missing = [d for d in expected_descriptions if not any(d in found for found in found_expected)]
+                    print(f"WARNING: Missing expected transactions: {missing}")
+                    success = False
+                
+                # Check if we found any unexpected transactions
+                if found_unexpected:
+                    print(f"WARNING: Found unexpected transactions that should have been skipped: {found_unexpected}")
+                    success = False
+        
+        # Clean up
+        if os.path.exists(pdf_path):
+            os.remove(pdf_path)
+        
+        return print_test_result("Word Boundary Fix for Header Detection", success, response)
+    except Exception as e:
+        return print_test_result("Word Boundary Fix for Header Detection", False, error=str(e))
+
 if __name__ == "__main__":
     run_all_tests()
