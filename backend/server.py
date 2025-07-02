@@ -1,5 +1,6 @@
-from fastapi import FastAPI, APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, APIRouter, UploadFile, File, Form, HTTPException, Depends
 from fastapi.responses import FileResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -13,7 +14,10 @@ from datetime import datetime, date
 import pandas as pd
 import io
 import json
+import re
 from collections import defaultdict
+import pdfplumber
+import PyPDF2
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -29,14 +33,49 @@ app = FastAPI()
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
+# Security
+security = HTTPBearer(auto_error=False)
+
 # Define Models
+class User(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    email: str
+    household_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class UserCreate(BaseModel):
+    name: str
+    email: str
+    household_name: Optional[str] = None
+
+class Category(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    color: str = "#3B82F6"
+    user_id: str
+    household_id: Optional[str] = None
+    is_default: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class CategoryCreate(BaseModel):
+    name: str
+    color: str = "#3B82F6"
+
+class CategoryUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+
 class Transaction(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     date: date
     description: str
     category: str
     amount: float
-    account_type: str = "credit_card"  # credit_card, debit, checking, etc.
+    account_type: str = "credit_card"
+    user_id: str
+    household_id: Optional[str] = None
+    pdf_source: Optional[str] = None  # Track if imported from PDF
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class TransactionCreate(BaseModel):
@@ -45,6 +84,7 @@ class TransactionCreate(BaseModel):
     category: str
     amount: float
     account_type: str = "credit_card"
+    user_id: Optional[str] = "default_user"
 
 class MonthlyReport(BaseModel):
     month: str
@@ -59,14 +99,278 @@ class CategorySpending(BaseModel):
     count: int
     percentage: float
 
-# Add your routes to the router instead of directly to app
+# PDF Processing Functions
+def extract_text_from_pdf(file_content: bytes) -> str:
+    """Extract text from PDF using multiple methods for better reliability"""
+    text = ""
+    
+    try:
+        # Method 1: Using pdfplumber (better for tables and structured data)
+        with pdfplumber.open(io.BytesIO(file_content)) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
+    except Exception as e:
+        logging.warning(f"pdfplumber extraction failed: {e}")
+        
+        # Method 2: Fallback to PyPDF2
+        try:
+            pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_content))
+            for page in pdf_reader.pages:
+                text += page.extract_text() + "\n"
+        except Exception as e2:
+            logging.error(f"PyPDF2 extraction also failed: {e2}")
+            raise HTTPException(status_code=400, detail="Could not extract text from PDF")
+    
+    return text
+
+def parse_transactions_from_text(text: str, user_id: str) -> List[dict]:
+    """Parse transactions from extracted PDF text - enhanced for multiple bank formats"""
+    transactions = []
+    
+    # Enhanced patterns for different bank statement formats
+    patterns = [
+        # CIBC Pattern - matches your statement format
+        r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+([^$]+?)\s+\$?(\d+\.?\d*)',
+        # Generic pattern for date amount description
+        r'(\d{1,2}/\d{1,2}/\d{4})\s+([^$]+?)\s+\$?(\d+\.?\d*)',
+        # Another common format
+        r'(\d{4}-\d{2}-\d{2})\s+([^$]+?)\s+\$?(\d+\.?\d*)',
+        # Tab-separated format
+        r'(\d{1,2}/\d{1,2})\s+(\d{1,2}/\d{1,2})\s+([^\t]+)\s+(\d+\.\d{2})'
+    ]
+    
+    # Category mapping based on description keywords
+    category_keywords = {
+        'Retail and Grocery': ['superstore', 'grocery', 'dollarama', 'walmart', 'costco', 'loblaws', 'metro', 'sobeys'],
+        'Restaurants': ['restaurant', 'coffee', 'starbucks', 'tim hortons', 'mcdonalds', 'pizza', 'food', 'dining', 'cafe'],
+        'Transportation': ['lyft', 'uber', 'taxi', 'gas', 'petro', 'shell', 'esso', 'transit'],
+        'Home and Office Improvement': ['home depot', 'lowes', 'staples', 'canadian tire', 'ikea', 'office'],
+        'Hotel, Entertainment and Recreation': ['hotel', 'movie', 'netflix', 'spotify', 'apple.com', 'entertainment'],
+        'Professional and Financial Services': ['bank', 'fee', 'transfer', 'mortgage', 'insurance', 'legal'],
+        'Health and Education': ['pharmacy', 'doctor', 'dental', 'hospital', 'school', 'university'],
+        'Foreign Currency Transactions': ['foreign', 'currency', 'exchange', 'international']
+    }
+    
+    lines = text.split('\n')
+    current_year = datetime.now().year
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        for pattern in patterns:
+            matches = re.findall(pattern, line, re.IGNORECASE)
+            for match in matches:
+                try:
+                    if len(match) == 4:
+                        date_str, _, description, amount_str = match
+                    elif len(match) == 3:
+                        date_str, description, amount_str = match
+                    else:
+                        continue
+                    
+                    # Clean and parse amount
+                    amount_str = re.sub(r'[^\d.]', '', amount_str)
+                    amount = float(amount_str)
+                    
+                    # Skip very small amounts (likely fees) or very large amounts (likely errors)
+                    if amount < 0.01 or amount > 10000:
+                        continue
+                    
+                    # Parse date - handle different formats
+                    transaction_date = None
+                    try:
+                        if '/' in date_str:
+                            if date_str.count('/') == 2:  # Full date
+                                transaction_date = datetime.strptime(date_str, '%m/%d/%Y').date()
+                            else:  # MM/DD format
+                                month, day = map(int, date_str.split('/'))
+                                transaction_date = date(current_year, month, day)
+                        elif '-' in date_str:  # YYYY-MM-DD format
+                            transaction_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                        else:  # Mon DD format (like Nov 14)
+                            month_map = {
+                                'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+                                'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+                            }
+                            parts = date_str.split()
+                            if len(parts) == 2:
+                                month_name, day = parts
+                                month = month_map.get(month_name[:3], None)
+                                if month:
+                                    transaction_date = date(current_year, month, int(day))
+                    except:
+                        continue
+                    
+                    if not transaction_date:
+                        continue
+                    
+                    # Clean description
+                    description = re.sub(r'\s+', ' ', description.strip())
+                    description = description[:100]  # Limit length
+                    
+                    # Auto-categorize based on description
+                    category = 'Personal and Household Expenses'  # Default
+                    description_lower = description.lower()
+                    
+                    for cat, keywords in category_keywords.items():
+                        if any(keyword in description_lower for keyword in keywords):
+                            category = cat
+                            break
+                    
+                    # Create transaction
+                    transaction = {
+                        'date': transaction_date.isoformat(),
+                        'description': description,
+                        'category': category,
+                        'amount': amount,
+                        'account_type': 'credit_card',
+                        'user_id': user_id,
+                        'pdf_source': 'pdf_import'
+                    }
+                    
+                    transactions.append(transaction)
+                    
+                except Exception as e:
+                    logging.warning(f"Error parsing transaction from line: {line}, error: {e}")
+                    continue
+    
+    # Remove duplicates based on date, description, and amount
+    seen = set()
+    unique_transactions = []
+    for transaction in transactions:
+        key = (transaction['date'], transaction['description'], transaction['amount'])
+        if key not in seen:
+            seen.add(key)
+            unique_transactions.append(transaction)
+    
+    return unique_transactions
+
+# Helper function to get user (for now, use default user)
+async def get_current_user_id() -> str:
+    return "default_user"
+
+# Initialize default categories
+DEFAULT_CATEGORIES = [
+    "Retail and Grocery",
+    "Restaurants", 
+    "Transportation",
+    "Home and Office Improvement",
+    "Hotel, Entertainment and Recreation",
+    "Professional and Financial Services",
+    "Health and Education",
+    "Foreign Currency Transactions",
+    "Personal and Household Expenses"
+]
+
+async def initialize_default_categories(user_id: str):
+    """Initialize default categories for a user"""
+    existing_categories = await db.categories.find({"user_id": user_id}).to_list(100)
+    if not existing_categories:
+        default_categories = []
+        colors = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#06B6D4", "#84CC16", "#F97316", "#6B7280"]
+        
+        for i, cat_name in enumerate(DEFAULT_CATEGORIES):
+            category = Category(
+                name=cat_name,
+                color=colors[i % len(colors)],
+                user_id=user_id,
+                is_default=True
+            )
+            default_categories.append(category.dict())
+        
+        if default_categories:
+            await db.categories.insert_many(default_categories)
+
+# API Routes
 @api_router.get("/")
 async def root():
-    return {"message": "LifeTracker Banking Dashboard API"}
+    return {"message": "LifeTracker Banking Dashboard API v2.0"}
 
+# User Management
+@api_router.post("/users", response_model=User)
+async def create_user(user: UserCreate):
+    user_data = user.dict()
+    user_obj = User(**user_data)
+    
+    # Convert datetime to string for MongoDB
+    user_dict = user_obj.dict()
+    user_dict['created_at'] = user_dict['created_at'].isoformat()
+    
+    await db.users.insert_one(user_dict)
+    
+    # Initialize default categories for the user
+    await initialize_default_categories(user_obj.id)
+    
+    return user_obj
+
+@api_router.get("/users", response_model=List[User])
+async def get_users():
+    users = await db.users.find().to_list(100)
+    return [User(**user) for user in users]
+
+# Category Management
+@api_router.get("/categories", response_model=List[Category])
+async def get_categories(user_id: str = Depends(get_current_user_id)):
+    await initialize_default_categories(user_id)  # Ensure categories exist
+    categories = await db.categories.find({"user_id": user_id}).to_list(100)
+    return [Category(**category) for category in categories]
+
+@api_router.post("/categories", response_model=Category)
+async def create_category(category: CategoryCreate, user_id: str = Depends(get_current_user_id)):
+    category_data = category.dict()
+    category_obj = Category(**category_data, user_id=user_id)
+    
+    # Convert datetime to string for MongoDB
+    category_dict = category_obj.dict()
+    category_dict['created_at'] = category_dict['created_at'].isoformat()
+    
+    await db.categories.insert_one(category_dict)
+    return category_obj
+
+@api_router.put("/categories/{category_id}", response_model=Category)
+async def update_category(category_id: str, category_update: CategoryUpdate, user_id: str = Depends(get_current_user_id)):
+    update_data = {k: v for k, v in category_update.dict().items() if v is not None}
+    
+    result = await db.categories.update_one(
+        {"id": category_id, "user_id": user_id},
+        {"$set": update_data}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Category not found")
+    
+    updated_category = await db.categories.find_one({"id": category_id, "user_id": user_id})
+    return Category(**updated_category)
+
+@api_router.delete("/categories/{category_id}")
+async def delete_category(category_id: str, user_id: str = Depends(get_current_user_id)):
+    # Check if category is being used by transactions
+    transactions_using_category = await db.transactions.count_documents({"category": category_id, "user_id": user_id})
+    
+    if transactions_using_category > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot delete category. It is used by {transactions_using_category} transactions."
+        )
+    
+    result = await db.categories.delete_one({"id": category_id, "user_id": user_id, "is_default": {"$ne": True}})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Category not found or cannot delete default category")
+    
+    return {"message": "Category deleted successfully"}
+
+# Transaction Management (Enhanced)
 @api_router.post("/transactions", response_model=Transaction)
 async def create_transaction(transaction: TransactionCreate):
     transaction_dict = transaction.dict()
+    if not transaction_dict.get('user_id'):
+        transaction_dict['user_id'] = await get_current_user_id()
+    
     transaction_obj = Transaction(**transaction_dict)
     
     # Convert date to string for MongoDB storage
@@ -81,9 +385,10 @@ async def create_transaction(transaction: TransactionCreate):
 async def get_transactions(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    category: Optional[str] = None
+    category: Optional[str] = None,
+    user_id: str = Depends(get_current_user_id)
 ):
-    filter_dict = {}
+    filter_dict = {"user_id": user_id}
     
     if start_date:
         filter_dict["date"] = {"$gte": start_date}
@@ -99,14 +404,81 @@ async def get_transactions(
     return [Transaction(**transaction) for transaction in transactions]
 
 @api_router.delete("/transactions/{transaction_id}")
-async def delete_transaction(transaction_id: str):
-    result = await db.transactions.delete_one({"id": transaction_id})
+async def delete_transaction(transaction_id: str, user_id: str = Depends(get_current_user_id)):
+    result = await db.transactions.delete_one({"id": transaction_id, "user_id": user_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Transaction not found")
     return {"message": "Transaction deleted successfully"}
 
+# PDF Processing Endpoint
+@api_router.post("/transactions/pdf-import")
+async def import_transactions_from_pdf(
+    file: UploadFile = File(...),
+    user_id: str = Depends(get_current_user_id)
+):
+    if not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+    
+    try:
+        # Read PDF content
+        content = await file.read()
+        
+        # Extract text from PDF
+        text = extract_text_from_pdf(content)
+        
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="Could not extract text from PDF")
+        
+        # Parse transactions from text
+        parsed_transactions = parse_transactions_from_text(text, user_id)
+        
+        if not parsed_transactions:
+            return {
+                "message": "No transactions found in PDF", 
+                "imported_count": 0,
+                "extracted_text_preview": text[:500] + "..." if len(text) > 500 else text
+            }
+        
+        # Check for duplicates and insert new transactions
+        new_transactions = []
+        duplicate_count = 0
+        
+        for trans_data in parsed_transactions:
+            # Check if transaction already exists
+            existing = await db.transactions.find_one({
+                "user_id": user_id,
+                "date": trans_data["date"],
+                "description": trans_data["description"],
+                "amount": trans_data["amount"]
+            })
+            
+            if not existing:
+                transaction_obj = Transaction(**trans_data)
+                trans_dict = transaction_obj.dict()
+                trans_dict['date'] = trans_dict['date'].isoformat() if hasattr(trans_dict['date'], 'isoformat') else trans_dict['date']
+                trans_dict['created_at'] = trans_dict['created_at'].isoformat()
+                new_transactions.append(trans_dict)
+            else:
+                duplicate_count += 1
+        
+        # Insert new transactions
+        if new_transactions:
+            await db.transactions.insert_many(new_transactions)
+        
+        return {
+            "message": f"Successfully processed PDF",
+            "imported_count": len(new_transactions),
+            "duplicate_count": duplicate_count,
+            "total_found": len(parsed_transactions)
+        }
+        
+    except Exception as e:
+        logging.error(f"PDF processing error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
+
+# Enhanced Analytics (with user filtering)
 @api_router.get("/analytics/monthly-report")
-async def get_monthly_report(year: Optional[int] = None):
+async def get_monthly_report(year: Optional[int] = None, user_id: str = Depends(get_current_user_id)):
     current_year = year or datetime.now().year
     
     # Get all transactions for the year
@@ -114,6 +486,7 @@ async def get_monthly_report(year: Optional[int] = None):
     end_date = f"{current_year}-12-31"
     
     transactions = await db.transactions.find({
+        "user_id": user_id,
         "date": {"$gte": start_date, "$lte": end_date}
     }).to_list(1000)
     
@@ -149,9 +522,10 @@ async def get_monthly_report(year: Optional[int] = None):
 @api_router.get("/analytics/category-breakdown")
 async def get_category_breakdown(
     start_date: Optional[str] = None,
-    end_date: Optional[str] = None
+    end_date: Optional[str] = None,
+    user_id: str = Depends(get_current_user_id)
 ):
-    filter_dict = {}
+    filter_dict = {"user_id": user_id}
     if start_date:
         filter_dict["date"] = {"$gte": start_date}
     if end_date:
@@ -184,8 +558,9 @@ async def get_category_breakdown(
     
     return sorted(result, key=lambda x: x["amount"], reverse=True)
 
+# Enhanced bulk import with user support
 @api_router.post("/transactions/bulk-import")
-async def bulk_import_transactions(file: UploadFile = File(...)):
+async def bulk_import_transactions(file: UploadFile = File(...), user_id: str = Depends(get_current_user_id)):
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Only CSV files are supported")
     
@@ -203,15 +578,29 @@ async def bulk_import_transactions(file: UploadFile = File(...)):
         
         transactions = []
         for _, row in df.iterrows():
+            # Convert date to string if it's a datetime object
+            date_value = row['date']
+            if hasattr(date_value, 'isoformat'):
+                date_value = date_value.isoformat()
+            elif hasattr(date_value, 'strftime'):
+                date_value = date_value.strftime('%Y-%m-%d')
+            
             transaction_data = {
-                "date": row['date'],
-                "description": row['description'],
-                "category": row['category'],
+                "date": str(date_value),
+                "description": str(row['description']),
+                "category": str(row['category']),
                 "amount": float(row['amount']),
-                "account_type": row.get('account_type', 'credit_card')
+                "account_type": str(row.get('account_type', 'credit_card')),
+                "user_id": user_id
             }
             transaction_obj = Transaction(**transaction_data)
-            transactions.append(transaction_obj.dict())
+            transaction_dict = transaction_obj.dict()
+            # Ensure dates are strings for MongoDB
+            if hasattr(transaction_dict['date'], 'isoformat'):
+                transaction_dict['date'] = transaction_dict['date'].isoformat()
+            if hasattr(transaction_dict['created_at'], 'isoformat'):
+                transaction_dict['created_at'] = transaction_dict['created_at'].isoformat()
+            transactions.append(transaction_dict)
         
         # Insert all transactions
         if transactions:
@@ -223,13 +612,14 @@ async def bulk_import_transactions(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
 @api_router.get("/analytics/spending-trends")
-async def get_spending_trends(months: int = 12):
+async def get_spending_trends(months: int = 12, user_id: str = Depends(get_current_user_id)):
     # Get transactions from the last N months
     end_date = datetime.now().date()
     start_date = end_date.replace(month=end_date.month - months + 1 if end_date.month > months else 12 - (months - end_date.month - 1), 
                                   year=end_date.year if end_date.month > months else end_date.year - 1)
     
     transactions = await db.transactions.find({
+        "user_id": user_id,
         "date": {"$gte": start_date.isoformat(), "$lte": end_date.isoformat()}
     }).to_list(1000)
     
