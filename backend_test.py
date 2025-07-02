@@ -709,6 +709,11 @@ def run_all_tests():
         "PDF Import": test_pdf_import(),
         "PDF Import Duplicate Detection": test_pdf_import_duplicate_detection(),
         "PDF Import Error Handling": test_pdf_import_error_handling(),
+        "PDF Transaction Extraction Completeness": test_pdf_extraction_completeness(),
+        "Transactions by Date": test_transactions_by_date(),
+        "Database State": test_database_state(),
+        "Monthly Report with Year Parameter": test_monthly_report_with_year(),
+        "Check for Lovisa Transaction": test_check_for_lovisa(),
         "Delete Transaction": test_delete_transaction(),
         "Delete Category": test_delete_category()
     }
