@@ -438,12 +438,10 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Monthly spending overview display"
     - "Date extraction accuracy"
     - "PDF transaction extraction completeness"
     - "PDF import functionality"
   stuck_tasks:
-    - "Monthly spending overview display"
     - "PDF transaction extraction completeness"
   test_all: false
   test_priority: "stuck_first"
