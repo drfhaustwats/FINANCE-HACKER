@@ -55,6 +55,10 @@ const Dashboard = () => {
   const [selectedTransactions, setSelectedTransactions] = useState(new Set());
   const [selectAll, setSelectAll] = useState(false);
 
+  // Category editing state
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [tempCategory, setTempCategory] = useState('');
+
   const defaultCategories = [
     'Retail and Grocery',
     'Restaurants',
