@@ -320,11 +320,19 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                             print(f"STRATEGY 2B MATCH: {transaction_match.groups()}")
             
             # If we found a transaction match, process it
+            # If we found a transaction match, process it
             if transaction_match:
-                trans_date_str, post_date_str, description, category_str, amount_str = transaction_match.groups()
-                
-                print(f"LINE {line_num}: {line}")
-                print(f"MATCHED: Trans={trans_date_str}, Post={post_date_str}, Desc='{description}', Cat='{category_str}', Amt={amount_str}")
+                try:
+                    # Handle both tuple and regex match objects
+                    if isinstance(transaction_match, tuple):
+                        trans_date_str, post_date_str, description, category_str, amount_str = transaction_match
+                    else:
+                        trans_date_str, post_date_str, description, category_str, amount_str = transaction_match.groups()
+                    
+                    print(f"PROCESSING: Trans={trans_date_str}, Post={post_date_str}, Desc='{description}', Cat='{category_str}', Amt={amount_str}")
+                except Exception as e:
+                    print(f"Error processing transaction match: {e}")
+                    continue
                 
                 try:
                     # Parse amount
