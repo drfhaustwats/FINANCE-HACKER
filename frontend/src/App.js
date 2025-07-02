@@ -685,7 +685,7 @@ const Dashboard = () => {
             {/* Filters */}
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Filters & Search</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
                   <input
@@ -718,7 +718,19 @@ const Dashboard = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">PDF Source</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Account Type</label>
+                  <select
+                    value={filters.accountType}
+                    onChange={(e) => handleFilterChange('accountType', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">All Types</option>
+                    <option value="credit_card">Credit Card</option>
+                    <option value="debit">Debit Account</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Source</label>
                   <select
                     value={filters.pdfSource}
                     onChange={(e) => handleFilterChange('pdfSource', e.target.value)}
