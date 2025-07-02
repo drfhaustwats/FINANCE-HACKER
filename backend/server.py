@@ -1750,6 +1750,7 @@ async def get_current_user_id_legacy():
 
 # Include both routers in the main app
 app.include_router(api_router)
+app.include_router(auth_router)
 
 app.add_middleware(
     CORSMiddleware,
