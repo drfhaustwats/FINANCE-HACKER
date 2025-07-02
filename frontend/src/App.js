@@ -1275,11 +1275,31 @@ function Dashboard() {
   );
 };
 
-function App() {
+// Main App Component with Authentication
+function AppContent() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  if (!user) {
+    return <AuthPage />;
+  }
+
   return (
-    <div className="App">
+    <div className="min-h-screen bg-gray-50">
+      <UserHeader />
       <Dashboard />
     </div>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 
