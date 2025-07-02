@@ -765,6 +765,7 @@ def run_all_tests():
         "Database State": test_database_state(),
         "Monthly Report with Year Parameter": test_monthly_report_with_year(),
         "Check for Lovisa Transaction and Update": test_check_for_lovisa(),
+        "Word Boundary Fix for Header Detection": test_word_boundary_fix(),
         "Delete Transaction": test_delete_transaction(),
         "Delete Category": test_delete_category()
     }
