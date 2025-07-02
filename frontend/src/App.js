@@ -88,6 +88,7 @@ const Dashboard = () => {
       if (filters.endDate) transactionParams.append('end_date', filters.endDate);
       if (filters.category) transactionParams.append('category', filters.category);
       if (filters.pdfSource) transactionParams.append('pdf_source', filters.pdfSource);
+      if (filters.accountType) transactionParams.append('account_type', filters.accountType);
       transactionParams.append('sort_by', sortConfig.field);
       transactionParams.append('sort_order', sortConfig.direction);
 
