@@ -7,6 +7,9 @@ import os
 from datetime import datetime, date
 import time
 import sys
+import PyPDF2
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
 
 # Get the backend URL from the frontend .env file
 def get_backend_url():
@@ -33,6 +36,17 @@ test_transaction = {
     "account_type": "credit_card"
 }
 
+test_user = {
+    "name": "John Doe",
+    "email": "john.doe@example.com",
+    "household_name": "Doe Family"
+}
+
+test_category = {
+    "name": "Test Category",
+    "color": "#FF5733"
+}
+
 # Helper function to print test results
 def print_test_result(test_name, success, response=None, error=None):
     print(f"\n{'=' * 80}")
@@ -51,6 +65,38 @@ def print_test_result(test_name, success, response=None, error=None):
     
     print(f"{'=' * 80}\n")
     return success
+
+# Helper function to create a test PDF with transaction data
+def create_test_pdf(filepath):
+    c = canvas.Canvas(filepath, pagesize=letter)
+    c.setFont("Helvetica", 12)
+    
+    # Add a title
+    c.drawString(100, 750, "Bank Statement")
+    c.drawString(100, 730, "Account: XXXX-XXXX-XXXX-1234")
+    c.drawString(100, 710, "Statement Period: Oct 15, 2024 - Nov 15, 2024")
+    
+    # Add transaction headers
+    c.drawString(100, 670, "Date       Description                                Amount")
+    c.drawString(100, 650, "----------------------------------------------------------------")
+    
+    # Add some transactions
+    transactions = [
+        ("Oct 15", "Oct 16", "AMAZON.COM PURCHASE                      $45.99"),
+        ("Oct 17", "Oct 18", "STARBUCKS COFFEE                         $5.75"),
+        ("Oct 19", "Oct 20", "UBER RIDE                                $12.50"),
+        ("Oct 21", "Oct 22", "WALMART STORE #123                       $67.89"),
+        ("Oct 23", "Oct 24", "NETFLIX SUBSCRIPTION                     $14.99")
+    ]
+    
+    y_position = 630
+    for trans in transactions:
+        c.drawString(100, y_position, f"{trans[0]}    {trans[1]}    {trans[2]}")
+        y_position -= 20
+    
+    c.save()
+    print(f"Created test PDF at {filepath}")
+    return filepath
 
 # Test 1: Root endpoint
 def test_root_endpoint():
@@ -236,6 +282,262 @@ def test_delete_transaction():
     except Exception as e:
         return print_test_result("Delete Transaction", False, error=str(e))
 
+# Test 8: Create user
+def test_create_user():
+    try:
+        response = requests.post(f"{API_URL}/users", json=test_user)
+        success = response.status_code == 200 and "id" in response.json()
+        
+        # Store the user ID for later tests
+        if success:
+            global created_user_id
+            created_user_id = response.json()["id"]
+            print(f"Created user with ID: {created_user_id}")
+        
+        return print_test_result("Create User", success, response)
+    except Exception as e:
+        return print_test_result("Create User", False, error=str(e))
+
+# Test 9: Get all users
+def test_get_users():
+    try:
+        response = requests.get(f"{API_URL}/users")
+        success = response.status_code == 200 and isinstance(response.json(), list)
+        
+        # Verify the user we just created is in the list
+        if success and hasattr(sys.modules[__name__], 'created_user_id'):
+            user_found = False
+            for user in response.json():
+                if user.get("id") == created_user_id:
+                    user_found = True
+                    break
+            
+            if not user_found:
+                print(f"WARNING: Created user with ID {created_user_id} not found in results")
+                success = False
+        
+        return print_test_result("Get All Users", success, response)
+    except Exception as e:
+        return print_test_result("Get All Users", False, error=str(e))
+
+# Test 10: Get all categories
+def test_get_categories():
+    try:
+        response = requests.get(f"{API_URL}/categories")
+        success = response.status_code == 200 and isinstance(response.json(), list)
+        
+        # Verify the structure of the response
+        if success and response.json():
+            category = response.json()[0]
+            required_fields = ["id", "name", "color", "user_id"]
+            for field in required_fields:
+                if field not in category:
+                    print(f"WARNING: Required field '{field}' missing from category")
+                    success = False
+        
+        return print_test_result("Get All Categories", success, response)
+    except Exception as e:
+        return print_test_result("Get All Categories", False, error=str(e))
+
+# Test 11: Create category
+def test_create_category():
+    try:
+        response = requests.post(f"{API_URL}/categories", json=test_category)
+        success = response.status_code == 200 and "id" in response.json()
+        
+        # Store the category ID for later tests
+        if success:
+            global created_category_id
+            created_category_id = response.json()["id"]
+            print(f"Created category with ID: {created_category_id}")
+        
+        return print_test_result("Create Category", success, response)
+    except Exception as e:
+        return print_test_result("Create Category", False, error=str(e))
+
+# Test 12: Update category
+def test_update_category():
+    # Skip if we don't have a category ID
+    if not hasattr(sys.modules[__name__], 'created_category_id'):
+        return print_test_result("Update Category", False, error="No category ID available to update")
+    
+    try:
+        update_data = {
+            "name": "Updated Test Category",
+            "color": "#33FF57"
+        }
+        
+        response = requests.put(f"{API_URL}/categories/{created_category_id}", json=update_data)
+        success = response.status_code == 200 and "id" in response.json()
+        
+        # Verify the category was actually updated
+        if success:
+            updated_name = response.json().get("name")
+            updated_color = response.json().get("color")
+            
+            if updated_name != update_data["name"] or updated_color != update_data["color"]:
+                print(f"WARNING: Category not updated correctly. Expected name: {update_data['name']}, got: {updated_name}. Expected color: {update_data['color']}, got: {updated_color}")
+                success = False
+        
+        return print_test_result("Update Category", success, response)
+    except Exception as e:
+        return print_test_result("Update Category", False, error=str(e))
+
+# Test 13: Delete category
+def test_delete_category():
+    # Skip if we don't have a category ID
+    if not hasattr(sys.modules[__name__], 'created_category_id'):
+        return print_test_result("Delete Category", False, error="No category ID available to delete")
+    
+    try:
+        response = requests.delete(f"{API_URL}/categories/{created_category_id}")
+        success = response.status_code == 200 and "message" in response.json()
+        
+        # Verify the category was actually deleted
+        if success:
+            verify_response = requests.get(f"{API_URL}/categories")
+            if verify_response.status_code == 200:
+                for category in verify_response.json():
+                    if category.get("id") == created_category_id:
+                        print(f"WARNING: Category with ID {created_category_id} still exists after deletion")
+                        success = False
+                        break
+        
+        return print_test_result("Delete Category", success, response)
+    except Exception as e:
+        return print_test_result("Delete Category", False, error=str(e))
+
+# Test 14: Create transaction with category
+def test_create_transaction_with_category():
+    try:
+        # First, get all categories
+        categories_response = requests.get(f"{API_URL}/categories")
+        if categories_response.status_code != 200 or not categories_response.json():
+            return print_test_result("Create Transaction with Category", False, error="No categories available")
+        
+        # Use the first category
+        category_id = categories_response.json()[0]["id"]
+        
+        # Create a transaction with this category
+        transaction_data = {
+            "date": "2024-11-07",
+            "description": "TRANSACTION WITH CATEGORY",
+            "category": category_id,
+            "amount": 25.99,
+            "account_type": "credit_card"
+        }
+        
+        response = requests.post(f"{API_URL}/transactions", json=transaction_data)
+        success = response.status_code == 200 and "id" in response.json()
+        
+        # Store the transaction ID for later tests
+        if success:
+            global created_transaction_with_category_id
+            created_transaction_with_category_id = response.json()["id"]
+            print(f"Created transaction with category, ID: {created_transaction_with_category_id}")
+            
+            # Verify the category is correctly linked
+            if response.json().get("category") != category_id:
+                print(f"WARNING: Category not correctly linked. Expected: {category_id}, got: {response.json().get('category')}")
+                success = False
+        
+        return print_test_result("Create Transaction with Category", success, response)
+    except Exception as e:
+        return print_test_result("Create Transaction with Category", False, error=str(e))
+
+# Test 15: Analytics with category filtering
+def test_analytics_with_category_filtering():
+    try:
+        # First, get all categories
+        categories_response = requests.get(f"{API_URL}/categories")
+        if categories_response.status_code != 200 or not categories_response.json():
+            return print_test_result("Analytics with Category Filtering", False, error="No categories available")
+        
+        # Use the first category
+        category_id = categories_response.json()[0]["id"]
+        
+        # Get category breakdown with filtering
+        response = requests.get(f"{API_URL}/analytics/category-breakdown?category={category_id}")
+        success = response.status_code == 200 and isinstance(response.json(), list)
+        
+        return print_test_result("Analytics with Category Filtering", success, response)
+    except Exception as e:
+        return print_test_result("Analytics with Category Filtering", False, error=str(e))
+
+# Test 16: PDF import
+def test_pdf_import():
+    try:
+        # Create a test PDF file
+        pdf_path = '/tmp/test_transactions.pdf'
+        create_test_pdf(pdf_path)
+        
+        # Upload the PDF file
+        with open(pdf_path, 'rb') as f:
+            files = {'file': ('test_transactions.pdf', f, 'application/pdf')}
+            response = requests.post(f"{API_URL}/transactions/pdf-import", files=files)
+        
+        success = response.status_code == 200 and "message" in response.json()
+        
+        # Clean up
+        if os.path.exists(pdf_path):
+            os.remove(pdf_path)
+        
+        return print_test_result("PDF Import", success, response)
+    except Exception as e:
+        return print_test_result("PDF Import", False, error=str(e))
+
+# Test 17: PDF import duplicate detection
+def test_pdf_import_duplicate_detection():
+    try:
+        # Create a test PDF file
+        pdf_path = '/tmp/test_transactions.pdf'
+        create_test_pdf(pdf_path)
+        
+        # Upload the PDF file first time
+        with open(pdf_path, 'rb') as f:
+            files = {'file': ('test_transactions.pdf', f, 'application/pdf')}
+            first_response = requests.post(f"{API_URL}/transactions/pdf-import", files=files)
+        
+        # Upload the same PDF file second time to test duplicate detection
+        with open(pdf_path, 'rb') as f:
+            files = {'file': ('test_transactions.pdf', f, 'application/pdf')}
+            second_response = requests.post(f"{API_URL}/transactions/pdf-import", files=files)
+        
+        # Check if duplicates were detected
+        success = second_response.status_code == 200 and "duplicate_count" in second_response.json()
+        
+        # Clean up
+        if os.path.exists(pdf_path):
+            os.remove(pdf_path)
+        
+        return print_test_result("PDF Import Duplicate Detection", success, second_response)
+    except Exception as e:
+        return print_test_result("PDF Import Duplicate Detection", False, error=str(e))
+
+# Test 18: PDF import error handling
+def test_pdf_import_error_handling():
+    try:
+        # Create an invalid PDF file (just a text file with .pdf extension)
+        invalid_pdf_path = '/tmp/invalid.pdf'
+        with open(invalid_pdf_path, 'w') as f:
+            f.write("This is not a valid PDF file")
+        
+        # Upload the invalid PDF file
+        with open(invalid_pdf_path, 'rb') as f:
+            files = {'file': ('invalid.pdf', f, 'application/pdf')}
+            response = requests.post(f"{API_URL}/transactions/pdf-import", files=files)
+        
+        # We expect an error response
+        success = response.status_code != 200
+        
+        # Clean up
+        if os.path.exists(invalid_pdf_path):
+            os.remove(invalid_pdf_path)
+        
+        return print_test_result("PDF Import Error Handling", success, response)
+    except Exception as e:
+        return print_test_result("PDF Import Error Handling", False, error=str(e))
+
 # Run all tests
 def run_all_tests():
     print("\n" + "=" * 40)
@@ -244,12 +546,23 @@ def run_all_tests():
     
     test_results = {
         "Root Endpoint": test_root_endpoint(),
+        "Create User": test_create_user(),
+        "Get All Users": test_get_users(),
+        "Get All Categories": test_get_categories(),
+        "Create Category": test_create_category(),
+        "Update Category": test_update_category(),
         "Create Transaction": test_create_transaction(),
+        "Create Transaction with Category": test_create_transaction_with_category(),
         "Get All Transactions": test_get_transactions(),
         "Monthly Report Analytics": test_monthly_report(),
         "Category Breakdown Analytics": test_category_breakdown(),
+        "Analytics with Category Filtering": test_analytics_with_category_filtering(),
         "Bulk Import Transactions": test_bulk_import(),
-        "Delete Transaction": test_delete_transaction()
+        "PDF Import": test_pdf_import(),
+        "PDF Import Duplicate Detection": test_pdf_import_duplicate_detection(),
+        "PDF Import Error Handling": test_pdf_import_error_handling(),
+        "Delete Transaction": test_delete_transaction(),
+        "Delete Category": test_delete_category()
     }
     
     print("\n" + "=" * 40)
