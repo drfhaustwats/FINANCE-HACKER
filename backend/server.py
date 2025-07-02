@@ -898,6 +898,7 @@ async def get_transactions(
     end_date: Optional[str] = None,
     category: Optional[str] = None,
     pdf_source: Optional[str] = None,
+    account_type: Optional[str] = None,
     sort_by: Optional[str] = "date",
     sort_order: Optional[str] = "desc",
     user_id: str = Depends(get_current_user_id)
@@ -915,6 +916,8 @@ async def get_transactions(
         filter_dict["category"] = category
     if pdf_source:
         filter_dict["pdf_source"] = pdf_source
+    if account_type:
+        filter_dict["account_type"] = account_type
     
     # Handle sorting
     sort_direction = -1 if sort_order == "desc" else 1
