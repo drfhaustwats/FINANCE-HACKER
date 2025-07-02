@@ -457,9 +457,12 @@ def parse_date_string(date_str: str, statement_year: int) -> date:
                     else:
                         year = current_year
                 
-                return date(year, month, int(day))
+                # Create date object - this should be the EXACT transaction date
+                parsed_date = date(year, month, int(day))
+                print(f"Date parsing: '{date_str}' -> {parsed_date} (year context: {year})")
+                return parsed_date
     except Exception as e:
-        print(f"Date parsing error: {e}")
+        print(f"Date parsing error for '{date_str}': {e}")
     return None
 
 def clean_category(category_str: str, description: str) -> str:
