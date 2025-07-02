@@ -152,12 +152,16 @@ def test_bulk_import():
         csv_data = io.StringIO()
         writer = csv.writer(csv_data)
         writer.writerow(["date", "description", "category", "amount", "account_type"])
+        # Use ISO format dates (YYYY-MM-DD)
         writer.writerow(["2024-10-15", "AMAZON.COM PURCHASE", "Shopping", "45.99", "credit_card"])
         writer.writerow(["2024-10-16", "STARBUCKS COFFEE", "Food & Dining", "5.75", "debit"])
         writer.writerow(["2024-10-17", "UBER RIDE", "Transportation", "12.50", "credit_card"])
         
         csv_data.seek(0)
         csv_content = csv_data.getvalue()
+        
+        # Print the CSV content for debugging
+        print(f"CSV Content:\n{csv_content}")
         
         # Create a temporary CSV file
         temp_csv_path = '/tmp/transactions.csv'
