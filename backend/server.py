@@ -151,7 +151,7 @@ def extract_text_from_pdf(file_content: bytes) -> str:
     return text
 
 def extract_pdf_metadata(text: str) -> dict:
-    """Extract user name and statement period from PDF header"""
+    """Extract user name and statement period from PDF header - enhanced for multiple formats"""
     metadata = {
         'user_name': None,
         'statement_start': None,
@@ -161,34 +161,65 @@ def extract_pdf_metadata(text: str) -> dict:
     
     lines = text.split('\n')
     
-    # Look for user name in first few lines
-    for i, line in enumerate(lines[:10]):
+    # Enhanced user name extraction for both debit and credit formats
+    for i, line in enumerate(lines[:15]):  # Look at more lines
         line = line.strip()
-        # Look for name patterns (all caps, likely a person's name)
-        if re.match(r'^[A-Z\s]{10,50}$', line) and ' ' in line and len(line.split()) >= 2:
+        
+        # Method 1: Look for name patterns (all caps, likely a person's name)
+        if re.match(r'^[A-Z\s]{8,50}$', line) and ' ' in line and len(line.split()) >= 2:
             # Skip common bank terms
-            if not any(term in line.upper() for term in ['ACCOUNT', 'STATEMENT', 'CARD', 'BANK', 'DIVIDEND']):
+            bank_terms = ['ACCOUNT', 'STATEMENT', 'CARD', 'BANK', 'DIVIDEND', 'CIBC', 'VISA', 'TRANSACTION', 'DETAILS']
+            if not any(term in line.upper() for term in bank_terms):
                 metadata['user_name'] = line.strip()
+                print(f"Found user name (Method 1): {metadata['user_name']}")
+                break
+        
+        # Method 2: Look for "Prepared for:" pattern (credit cards)
+        prepared_match = re.search(r'prepared for:?\s*([A-Z\s]+?)(?:\s+[A-Z]{2,}\s+\d|\s*$)', line, re.IGNORECASE)
+        if prepared_match:
+            name = prepared_match.group(1).strip()
+            if len(name) > 5 and ' ' in name:  # Valid name should have space and be reasonable length
+                metadata['user_name'] = name
+                print(f"Found user name (Method 2): {metadata['user_name']}")
+                break
+        
+        # Method 3: Look for name right after date pattern (debit format)
+        # Example: "JANE AGBAOHWO                                For Jul 1 to Jul 31, 2024"
+        date_with_name = re.search(r'^([A-Z\s]+?)\s+For\s+(\w+\s+\d+\s+to\s+\w+\s+\d+,?\s+\d{4})', line, re.IGNORECASE)
+        if date_with_name:
+            name = date_with_name.group(1).strip()
+            if len(name) > 5 and ' ' in name:
+                metadata['user_name'] = name
+                print(f"Found user name (Method 3): {metadata['user_name']}")
+                # Also extract the date from this line
+                date_part = date_with_name.group(2)
+                period_match = re.search(r'(\w+)\s+(\d+)\s*to\s*(\w+)\s+(\d+),?\s*(\d{4})', date_part, re.IGNORECASE)
+                if period_match:
+                    start_month, start_day, end_month, end_day, year = period_match.groups()
+                    metadata['statement_start'] = f"{start_month} {start_day}"
+                    metadata['statement_end'] = f"{end_month} {end_day}"
+                    metadata['statement_year'] = int(year)
                 break
     
-    # Look for statement period
-    for line in lines[:20]:
-        line = line.strip()
-        # Pattern: "October 16to November 15, 2024" or "October 16 to November 15, 2024"
-        period_match = re.search(r'(\w+)\s+(\d+)\s*to\s*(\w+)\s+(\d+),?\s*(\d{4})', line, re.IGNORECASE)
-        if period_match:
-            start_month, start_day, end_month, end_day, year = period_match.groups()
-            metadata['statement_start'] = f"{start_month} {start_day}"
-            metadata['statement_end'] = f"{end_month} {end_day}"
-            metadata['statement_year'] = int(year)
-            break
-        
-        # Alternative pattern: "November 15, 2024" for statement date
-        date_match = re.search(r'(\w+)\s+(\d+),?\s*(\d{4})', line)
-        if date_match and 'statement' in line.lower():
-            month, day, year = date_match.groups()
-            metadata['statement_end'] = f"{month} {day}"
-            metadata['statement_year'] = int(year)
+    # Look for statement period if not found above
+    if not metadata['statement_year']:
+        for line in lines[:20]:
+            line = line.strip()
+            # Pattern: "October 16to November 15, 2024" or "October 16 to November 15, 2024"
+            period_match = re.search(r'(\w+)\s+(\d+)\s*to\s*(\w+)\s+(\d+),?\s*(\d{4})', line, re.IGNORECASE)
+            if period_match:
+                start_month, start_day, end_month, end_day, year = period_match.groups()
+                metadata['statement_start'] = f"{start_month} {start_day}"
+                metadata['statement_end'] = f"{end_month} {end_day}"
+                metadata['statement_year'] = int(year)
+                break
+            
+            # Alternative pattern: "November 15, 2024" for statement date
+            date_match = re.search(r'(\w+)\s+(\d+),?\s*(\d{4})', line)
+            if date_match and 'statement' in line.lower():
+                month, day, year = date_match.groups()
+                metadata['statement_end'] = f"{month} {day}"
+                metadata['statement_year'] = int(year)
     
     return metadata
 
