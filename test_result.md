@@ -321,6 +321,39 @@ backend:
         agent: "testing"
         comment: "Successfully tested enhanced analytics with category filtering. The API correctly filters analytics data by category."
 
+  - task: "Monthly spending overview display"
+    implemented: true
+    working: false
+    file: "/app/frontend/src/App.js"
+    stuck_count: 1
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "user"
+        comment: "User reported that monthly spending overview isn't populated on the frontend dashboard"
+      - working: "NA"
+        agent: "main"
+        comment: "Issue likely related to user_id mismatch between frontend calls and backend analytics endpoints. Frontend doesn't pass user_id but backend requires it."
+
+  - task: "Date extraction accuracy"
+    implemented: true
+    working: false
+    file: "/app/backend/server.py"
+    stuck_count: 2
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Previously reported as working in PDF import functionality"
+      - working: false
+        agent: "user"
+        comment: "User reported that ALL extracted dates are offset by -1 day from the actual transaction dates in the PDF"
+      - working: "NA"
+        agent: "main"
+        comment: "Need to investigate date parsing logic in parse_date_string function and PDF extraction patterns. The offset issue appears systematic."
+
 frontend:
   - task: "Frontend testing"
     implemented: true
