@@ -221,7 +221,18 @@ def parse_transactions_from_text(text: str, user_id: str) -> List[dict]:
                             continue
                         
                         # Use category from PDF if it looks valid, otherwise auto-categorize
-                        category = category_from_pdf.strip() if category_from_pdf and len(category_from_pdf.strip()) > 2 else None
+                        category = None
+                        if category_from_pdf and len(category_from_pdf.strip()) > 2:
+                            # Extract just the category name, ignore location info
+                            category_parts = category_from_pdf.strip().split()
+                            if len(category_parts) >= 2:
+                                # Look for known category patterns
+                                for known_cat in ['Retail and Grocery', 'Restaurants', 'Transportation', 'Home and Office Improvement', 
+                                                'Hotel, Entertainment and Recreation', 'Professional and Financial Services', 
+                                                'Health and Education', 'Foreign Currency Transactions', 'Personal and Household Expenses']:
+                                    if known_cat.lower() in category_from_pdf.lower():
+                                        category = known_cat
+                                        break
                         
                         # Auto-categorize based on description if no valid category from PDF
                         if not category:
