@@ -133,6 +133,50 @@ const Dashboard = () => {
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedTransactions.size === 0) {
+      alert('Please select transactions to delete');
+      return;
+    }
+
+    const confirmed = window.confirm(`Are you sure you want to delete ${selectedTransactions.size} selected transactions?`);
+    if (!confirmed) return;
+
+    try {
+      await axios.post(`${API}/transactions/bulk-delete`, {
+        transaction_ids: Array.from(selectedTransactions)
+      });
+      
+      setSelectedTransactions(new Set());
+      setSelectAll(false);
+      fetchData(); // Refresh data
+    } catch (error) {
+      console.error('Error bulk deleting transactions:', error);
+      alert('Error deleting transactions');
+    }
+  };
+
+  const handleSelectTransaction = (transactionId) => {
+    const newSelected = new Set(selectedTransactions);
+    if (newSelected.has(transactionId)) {
+      newSelected.delete(transactionId);
+    } else {
+      newSelected.add(transactionId);
+    }
+    setSelectedTransactions(newSelected);
+    setSelectAll(newSelected.size === transactions.length && transactions.length > 0);
+  };
+
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedTransactions(new Set());
+      setSelectAll(false);
+    } else {
+      setSelectedTransactions(new Set(transactions.map(t => t.id)));
+      setSelectAll(true);
+    }
+  };
+
   const handlePDFUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
