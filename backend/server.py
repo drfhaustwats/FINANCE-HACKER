@@ -76,6 +76,7 @@ class Transaction(BaseModel):
     user_id: str
     household_id: Optional[str] = None
     pdf_source: Optional[str] = None  # Track if imported from PDF and source filename
+    user_name: Optional[str] = None  # Extracted user name from PDF
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 class TransactionCreate(BaseModel):
