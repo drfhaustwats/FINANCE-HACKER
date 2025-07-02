@@ -513,6 +513,12 @@ async def get_transactions(
     transactions = await db.transactions.find(filter_dict).sort(sort_field, sort_direction).to_list(1000)
     return [Transaction(**transaction) for transaction in transactions]
 
+@api_router.get("/transactions/sources")
+async def get_pdf_sources(user_id: str = Depends(get_current_user_id)):
+    """Get list of unique PDF sources for filtering"""
+    sources = await db.transactions.distinct("pdf_source", {"user_id": user_id, "pdf_source": {"$ne": None}})
+    return {"sources": sources}
+
 @api_router.delete("/transactions/{transaction_id}")
 async def delete_transaction(transaction_id: str, user_id: str = Depends(get_current_user_id)):
     result = await db.transactions.delete_one({"id": transaction_id, "user_id": user_id})
