@@ -91,6 +91,7 @@ const Dashboard = () => {
         axios.get(`${API}/transactions/sources`)
       ]);
       
+      console.log('Monthly data received:', monthlyRes.data);
       setTransactions(transactionsRes.data);
       setMonthlyReports(monthlyRes.data);
       setCategoryBreakdown(categoryRes.data);
