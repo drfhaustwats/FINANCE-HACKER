@@ -647,7 +647,8 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                             
                             transaction_date = parse_date_string(trans_date_str, statement_year)
                             if transaction_date and amount > 0.01:
-                                category = clean_category(category_str, description)
+                                # Create enhanced source name
+                                enhanced_source = generate_source_name(user_name, 'credit', source_filename)
                                 
                                 transaction = {
                                     'date': transaction_date.isoformat(),
@@ -656,7 +657,7 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                                     'amount': amount,
                                     'account_type': 'credit_card',
                                     'user_id': user_id,
-                                    'pdf_source': source_filename or 'pdf_import',
+                                    'pdf_source': enhanced_source,
                                     'user_name': user_name
                                 }
                                 
