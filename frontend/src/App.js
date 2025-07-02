@@ -1043,6 +1043,97 @@ const Dashboard = () => {
                 </div>
               </div>
             </div>
+
+            {/* Enhanced Analytics - Account Type & Source Breakdown */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Account Type Breakdown */}
+              <div className="bg-white rounded-lg shadow">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <h3 className="text-lg font-medium text-gray-900">Account Type Analysis</h3>
+                </div>
+                <div className="p-6">
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Debit Summary */}
+                      <div className="bg-blue-50 rounded-lg p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium text-blue-900">Debit Accounts</h4>
+                            <p className="text-sm text-blue-700">
+                              {transactions.filter(t => t.account_type === 'debit').length} transactions
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-lg font-semibold text-blue-900">
+                              {formatCurrency(transactions.filter(t => t.account_type === 'debit').reduce((sum, t) => sum + t.amount, 0))}
+                            </p>
+                            <p className="text-xs text-blue-600">
+                              {transactions.length > 0 ? ((transactions.filter(t => t.account_type === 'debit').reduce((sum, t) => sum + t.amount, 0) / transactions.reduce((sum, t) => sum + t.amount, 0)) * 100).toFixed(1) : 0}%
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Credit Summary */}
+                      <div className="bg-purple-50 rounded-lg p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium text-purple-900">Credit Cards</h4>
+                            <p className="text-sm text-purple-700">
+                              {transactions.filter(t => t.account_type === 'credit_card').length} transactions
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-lg font-semibold text-purple-900">
+                              {formatCurrency(transactions.filter(t => t.account_type === 'credit_card').reduce((sum, t) => sum + t.amount, 0))}
+                            </p>
+                            <p className="text-xs text-purple-600">
+                              {transactions.length > 0 ? ((transactions.filter(t => t.account_type === 'credit_card').reduce((sum, t) => sum + t.amount, 0) / transactions.reduce((sum, t) => sum + t.amount, 0)) * 100).toFixed(1) : 0}%
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Source Breakdown */}
+              <div className="bg-white rounded-lg shadow">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <h3 className="text-lg font-medium text-gray-900">Source Analysis</h3>
+                </div>
+                <div className="p-6">
+                  <div className="space-y-3">
+                    {Array.from(new Set(transactions.map(t => t.pdf_source || 'Manual')))
+                      .map(source => {
+                        const sourceTransactions = transactions.filter(t => (t.pdf_source || 'Manual') === source);
+                        const totalAmount = sourceTransactions.reduce((sum, t) => sum + t.amount, 0);
+                        const percentage = transactions.length > 0 ? (totalAmount / transactions.reduce((sum, t) => sum + t.amount, 0)) * 100 : 0;
+                        
+                        return (
+                          <div key={source} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div className="flex items-center space-x-3">
+                              <div className={`w-3 h-3 rounded-full ${
+                                source === 'Manual' ? 'bg-gray-500' :
+                                source.toLowerCase().includes('debit') ? 'bg-blue-500' : 'bg-purple-500'
+                              }`}></div>
+                              <div>
+                                <p className="font-medium text-gray-900">{source}</p>
+                                <p className="text-sm text-gray-500">{sourceTransactions.length} transactions</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-semibold text-gray-900">{formatCurrency(totalAmount)}</p>
+                              <p className="text-sm text-gray-500">{percentage.toFixed(1)}%</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
