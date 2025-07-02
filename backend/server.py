@@ -256,7 +256,7 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                             'amount': amount,
                             'account_type': 'credit_card',
                             'user_id': user_id,
-                            'pdf_source': 'pdf_import'
+                            'pdf_source': source_filename or 'pdf_import'
                         }
                         
                         transactions.append(transaction)
