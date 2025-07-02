@@ -413,25 +413,32 @@ const Dashboard = () => {
               </div>
               <div className="p-6">
                 <div className="space-y-4">
-                  {monthlyReports.slice(-6).map((report) => (
-                    <div key={report.month} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                      <div>
-                        <h4 className="font-medium text-gray-900">{getMonthName(report.month)}</h4>
-                        <p className="text-sm text-gray-600">{report.transaction_count} transactions</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-lg font-semibold text-gray-900">{formatCurrency(report.total_spent)}</p>
-                        <div className="w-32 bg-gray-200 rounded-full h-2 mt-1">
-                          <div 
-                            className="bg-blue-600 h-2 rounded-full" 
-                            style={{
-                              width: `${Math.min(100, (report.total_spent / Math.max(...monthlyReports.map(r => r.total_spent))) * 100)}%`
-                            }}
-                          ></div>
+                  {monthlyReports && monthlyReports.length > 0 ? (
+                    monthlyReports.slice(-6).map((report) => (
+                      <div key={report.month} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div>
+                          <h4 className="font-medium text-gray-900">{getMonthName(report.month)}</h4>
+                          <p className="text-sm text-gray-600">{report.transaction_count} transactions</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-semibold text-gray-900">{formatCurrency(report.total_spent)}</p>
+                          <div className="w-32 bg-gray-200 rounded-full h-2 mt-1">
+                            <div 
+                              className="bg-blue-600 h-2 rounded-full" 
+                              style={{
+                                width: `${Math.min(100, (report.total_spent / Math.max(...monthlyReports.map(r => r.total_spent))) * 100)}%`
+                              }}
+                            ></div>
+                          </div>
                         </div>
                       </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>No monthly data available</p>
+                      <p className="text-sm mt-1">Import transactions to see monthly spending overview</p>
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             </div>
