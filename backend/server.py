@@ -250,14 +250,49 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                 continue
             
             # Look for transaction patterns based on your PDF
-            # Pattern 1: Oct 22  Oct 24  OPENAI *CHATGPT SUBSCR HTTPSOPENAI.CA  Foreign Currency Transactions  29.82
-            # Pattern 2: Nov 14  Nov 15  A&W FOREST LAWN CALGARY AB  Restaurants  24.00
+            # Pattern: Oct 22  Oct 24  OPENAI *CHATGPT SUBSCR HTTPSOPENAI.CA  Foreign Currency Transactions  29.82
             
-            # Main CIBC transaction pattern
+            # Try multiple patterns to catch different formatting
+            transaction_match = None
+            
+            # Pattern 1: With clear category separation (multiple spaces)
             transaction_match = re.search(
-                r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+([A-Z0-9\*\#\s\.\-\/\&\(\)]+?)\s+([A-Za-z\s,&]+?)\s+(\d+\.\d{2})(?:\s|$)',
+                r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+([A-Z0-9\*\#\s\.\-\/\&\(\)]+?)\s{2,}([A-Za-z\s,&]+?)\s+(\d+\.\d{2})(?:\s|$)',
                 line
             )
+            
+            # Pattern 2: If pattern 1 doesn't work, try with single space separation
+            if not transaction_match:
+                transaction_match = re.search(
+                    r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+(.+?)\s+([A-Z][a-z]+(?:\s+[a-z]+)*(?:\s+and\s+[A-Z][a-z]+)*)\s+(\d+\.\d{2})(?:\s|$)',
+                    line
+                )
+            
+            # Pattern 3: Most permissive - just find date-date-text-amount
+            if not transaction_match:
+                transaction_match = re.search(
+                    r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+(.+?)\s+(\d+\.\d{2})(?:\s|$)',
+                    line
+                )
+                if transaction_match:
+                    # For this pattern, we need to manually separate description and category
+                    trans_date_str, post_date_str, desc_and_cat, amount_str = transaction_match.groups()
+                    # Try to find where description ends and category begins
+                    # Look for known category keywords at the end
+                    category_str = ""
+                    description = desc_and_cat.strip()
+                    
+                    # Check if line ends with known categories
+                    for known_cat in ['Retail and Grocery', 'Restaurants', 'Transportation', 
+                                    'Home and Office Improvement', 'Hotel, Entertainment and Recreation',
+                                    'Professional and Financial Services', 'Health and Education',
+                                    'Foreign Currency Transactions', 'Personal and Household Expenses']:
+                        if desc_and_cat.endswith(known_cat):
+                            category_str = known_cat
+                            description = desc_and_cat[:-len(known_cat)].strip()
+                            break
+                    
+                    transaction_match = (trans_date_str, post_date_str, description, category_str, amount_str)
             
             if transaction_match:
                 trans_date_str, post_date_str, description, category_str, amount_str = transaction_match.groups()
