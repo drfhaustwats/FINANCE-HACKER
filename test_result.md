@@ -375,16 +375,13 @@ metadata:
 
 test_plan:
   current_focus:
+    - "Monthly spending overview display"
+    - "Date extraction accuracy"
     - "PDF import functionality"
-    - "Category management API"
-    - "Transactions linked to categories"
-    - "Enhanced analytics with category filtering"
-    - "User management API"
-    - "PDF import duplicate detection"
-    - "PDF import error handling"
-  stuck_tasks: []
+  stuck_tasks:
+    - "Date extraction accuracy"
   test_all: false
-  test_priority: "high_first"
+  test_priority: "stuck_first"
 
 agent_communication:
   - agent: "testing"
