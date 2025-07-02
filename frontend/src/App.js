@@ -191,6 +191,31 @@ const Dashboard = () => {
     }
   };
 
+  const handleEditCategory = (transactionId, currentCategory) => {
+    setEditingTransactionId(transactionId);
+    setTempTransactionCategory(currentCategory);
+  };
+
+  const handleCancelCategoryEdit = () => {
+    setEditingTransactionId(null);
+    setTempTransactionCategory('');
+  };
+
+  const handleSaveCategoryEdit = async (transactionId) => {
+    try {
+      await axios.put(`${API}/transactions/${transactionId}`, {
+        category: tempTransactionCategory
+      });
+      
+      setEditingTransactionId(null);
+      setTempTransactionCategory('');
+      fetchData(); // Refresh data to show the updated category
+    } catch (error) {
+      console.error('Error updating category:', error);
+      alert('Failed to update category. Please try again.');
+    }
+  };
+
   const handleSelectTransaction = (transactionId) => {
     const newSelected = new Set(selectedTransactions);
     if (newSelected.has(transactionId)) {
