@@ -150,6 +150,26 @@ def extract_text_from_pdf(file_content: bytes) -> str:
     
     return text
 
+def generate_source_name(user_name: str, account_type: str, original_filename: str = None) -> str:
+    """Generate a user-friendly source name like 'JANE'S DEBIT' or 'JOHN'S CREDIT'"""
+    if not user_name or user_name == 'Unknown User':
+        # Fallback to filename if no user name found
+        if original_filename:
+            base_name = original_filename.replace('.pdf', '').replace('_', ' ').title()
+            return f"{base_name} ({account_type.title()})"
+        return f"Unknown {account_type.title()}"
+    
+    # Clean up the user name
+    name_parts = user_name.strip().split()
+    if len(name_parts) >= 2:
+        # Use first name for possessive form
+        first_name = name_parts[0].title()
+        return f"{first_name}'s {account_type.title()}"
+    else:
+        # Single name or short name
+        clean_name = user_name.title()
+        return f"{clean_name}'s {account_type.title()}"
+
 def extract_pdf_metadata(text: str) -> dict:
     """Extract user name and statement period from PDF header - enhanced for multiple formats"""
     metadata = {
