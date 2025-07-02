@@ -133,7 +133,7 @@ def parse_transactions_from_text(text: str, user_id: str) -> List[dict]:
     # Format: trans_date, post_date, description, category, amount
     patterns = [
         # CIBC Pattern - precise format: Date Date Description Category Amount
-        r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+([A-Z0-9\s\#\*\.\-\/]+?)\s+([A-Za-z\s,&]+?)\s+\$?(\d+\.\d{2})(?:\s|$)',
+        r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+([A-Z0-9\s\#\*\.\-\/\&]+?)\s+([A-Za-z\s,&]+?)\s+(\d+\.\d{2})(?:\s|$)',
         # CIBC Alternative - with dollar sign clearly at end
         r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+([A-Z0-9\s\#\*\.\-\/]+?)\s+([A-Za-z\s,&]+?)\s+\$(\d+\.\d{2})',
         # Generic pattern with proper amount at end
