@@ -373,6 +373,13 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                         print(f"Failed to parse date: {trans_date_str}")
                         continue
                     
+                    print(f"🗓️ DATE DEBUG: Input='{trans_date_str}' -> Parsed={transaction_date} -> Final ISO={transaction_date.isoformat()}")
+                    
+                    # Verify we're using transaction date, not post date
+                    post_date_parsed = parse_date_string(post_date_str, statement_year)
+                    if post_date_parsed:
+                        print(f"🔍 COMPARISON: Transaction={transaction_date} vs Post={post_date_parsed} (using Transaction date)")
+                    
                     # Clean and categorize
                     category = clean_category(category_str, description)
                     
