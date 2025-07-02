@@ -273,7 +273,10 @@ const Dashboard = () => {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-CA', {
+    // Parse date as local date to avoid timezone conversion issues
+    const [year, month, day] = dateString.split('-');
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    return date.toLocaleDateString('en-CA', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
