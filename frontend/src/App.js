@@ -1,38 +1,505 @@
-import { useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import "./App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
 import axios from "axios";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-const Home = () => {
-  const helloWorldApi = async () => {
+// Dashboard Components
+const Dashboard = () => {
+  const [transactions, setTransactions] = useState([]);
+  const [monthlyReports, setMonthlyReports] = useState([]);
+  const [categoryBreakdown, setCategoryBreakdown] = useState([]);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [loading, setLoading] = useState(true);
+
+  // Transaction form state
+  const [newTransaction, setNewTransaction] = useState({
+    date: new Date().toISOString().split('T')[0],
+    description: '',
+    category: 'Retail and Grocery',
+    amount: '',
+    account_type: 'credit_card'
+  });
+
+  const categories = [
+    'Retail and Grocery',
+    'Restaurants',
+    'Transportation',
+    'Home and Office Improvement',
+    'Hotel, Entertainment and Recreation',
+    'Professional and Financial Services',
+    'Health and Education',
+    'Foreign Currency Transactions',
+    'Personal and Household Expenses'
+  ];
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
     try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
+      const [transactionsRes, monthlyRes, categoryRes] = await Promise.all([
+        axios.get(`${API}/transactions`),
+        axios.get(`${API}/analytics/monthly-report`),
+        axios.get(`${API}/analytics/category-breakdown`)
+      ]);
+      
+      setTransactions(transactionsRes.data);
+      setMonthlyReports(monthlyRes.data);
+      setCategoryBreakdown(categoryRes.data);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    }
+    setLoading(false);
+  };
+
+  const handleAddTransaction = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post(`${API}/transactions`, {
+        ...newTransaction,
+        amount: parseFloat(newTransaction.amount)
+      });
+      
+      setNewTransaction({
+        date: new Date().toISOString().split('T')[0],
+        description: '',
+        category: 'Retail and Grocery',
+        amount: '',
+        account_type: 'credit_card'
+      });
+      
+      fetchData(); // Refresh data
+    } catch (error) {
+      console.error('Error adding transaction:', error);
     }
   };
 
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
+  const handleDeleteTransaction = async (transactionId) => {
+    try {
+      await axios.delete(`${API}/transactions/${transactionId}`);
+      fetchData(); // Refresh data
+    } catch (error) {
+      console.error('Error deleting transaction:', error);
+    }
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-CA', {
+      style: 'currency',
+      currency: 'CAD'
+    }).format(Math.abs(amount));
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-CA', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const getMonthName = (monthStr) => {
+    const [year, month] = monthStr.split('-');
+    return new Date(year, month - 1).toLocaleDateString('en-CA', {
+      year: 'numeric',
+      month: 'long'
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">LifeTracker</h1>
+              <p className="text-gray-600 mt-1">Banking & Expense Analytics Dashboard</p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-gray-600">Total Transactions</p>
+              <p className="text-2xl font-bold text-blue-600">{transactions.length}</p>
+            </div>
+          </div>
+        </div>
       </header>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Navigation Tabs */}
+        <div className="border-b border-gray-200 mb-8">
+          <nav className="-mb-px flex space-x-8">
+            {[
+              { id: 'overview', name: 'Overview', icon: '📊' },
+              { id: 'transactions', name: 'Transactions', icon: '💳' },
+              { id: 'analytics', name: 'Analytics', icon: '📈' },
+              { id: 'add', name: 'Add Transaction', icon: '➕' }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`${
+                  activeTab === tab.id
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
+              >
+                <span>{tab.icon}</span>
+                <span>{tab.name}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {/* Overview Tab */}
+        {activeTab === 'overview' && (
+          <div className="space-y-8">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <div className="p-2 bg-blue-100 rounded-md">
+                    <span className="text-2xl">💰</span>
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Total Spending</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {formatCurrency(categoryBreakdown.reduce((sum, cat) => sum + cat.amount, 0))}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <div className="p-2 bg-green-100 rounded-md">
+                    <span className="text-2xl">📋</span>
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Categories</p>
+                    <p className="text-2xl font-bold text-gray-900">{categoryBreakdown.length}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <div className="p-2 bg-purple-100 rounded-md">
+                    <span className="text-2xl">📅</span>
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">This Month</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {monthlyReports.length > 0 ? formatCurrency(monthlyReports[monthlyReports.length - 1].total_spent) : '$0.00'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Monthly Spending Trend */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">Monthly Spending Overview</h3>
+              </div>
+              <div className="p-6">
+                <div className="space-y-4">
+                  {monthlyReports.slice(-6).map((report) => (
+                    <div key={report.month} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div>
+                        <h4 className="font-medium text-gray-900">{getMonthName(report.month)}</h4>
+                        <p className="text-sm text-gray-600">{report.transaction_count} transactions</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-semibold text-gray-900">{formatCurrency(report.total_spent)}</p>
+                        <div className="w-32 bg-gray-200 rounded-full h-2 mt-1">
+                          <div 
+                            className="bg-blue-600 h-2 rounded-full" 
+                            style={{
+                              width: `${Math.min(100, (report.total_spent / Math.max(...monthlyReports.map(r => r.total_spent))) * 100)}%`
+                            }}
+                          ></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Top Categories */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">Spending by Category</h3>
+              </div>
+              <div className="p-6">
+                <div className="space-y-4">
+                  {categoryBreakdown.slice(0, 5).map((category) => (
+                    <div key={category.category} className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
+                        <span className="font-medium text-gray-900">{category.category}</span>
+                        <span className="text-sm text-gray-500">({category.count} transactions)</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-semibold text-gray-900">{formatCurrency(category.amount)}</span>
+                        <span className="text-sm text-gray-500 ml-2">({category.percentage}%)</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Transactions Tab */}
+        {activeTab === 'transactions' && (
+          <div className="bg-white rounded-lg shadow">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900">Recent Transactions</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {transactions.map((transaction) => (
+                    <tr key={transaction.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {formatDate(transaction.date)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{transaction.description}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                          {transaction.category}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {formatCurrency(transaction.amount)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button
+                          onClick={() => handleDeleteTransaction(transaction.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Analytics Tab */}
+        {activeTab === 'analytics' && (
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Category Breakdown */}
+              <div className="bg-white rounded-lg shadow">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <h3 className="text-lg font-medium text-gray-900">Category Analysis</h3>
+                </div>
+                <div className="p-6">
+                  <div className="space-y-4">
+                    {categoryBreakdown.map((category, index) => (
+                      <div key={category.category} className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700">{category.category}</span>
+                          <span className="text-sm text-gray-500">{formatCurrency(category.amount)}</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full ${
+                              index === 0 ? 'bg-blue-600' :
+                              index === 1 ? 'bg-green-600' :
+                              index === 2 ? 'bg-yellow-600' :
+                              index === 3 ? 'bg-purple-600' : 'bg-gray-600'
+                            }`}
+                            style={{ width: `${category.percentage}%` }}
+                          ></div>
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {category.percentage}% • {category.count} transactions
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Monthly Comparison */}
+              <div className="bg-white rounded-lg shadow">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <h3 className="text-lg font-medium text-gray-900">Monthly Comparison</h3>
+                </div>
+                <div className="p-6">
+                  <div className="space-y-4">
+                    {monthlyReports.slice(-6).map((report, index, arr) => {
+                      const prevReport = index > 0 ? arr[index - 1] : null;
+                      const change = prevReport ? 
+                        ((report.total_spent - prevReport.total_spent) / prevReport.total_spent * 100) : 0;
+                      
+                      return (
+                        <div key={report.month} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div>
+                            <h4 className="font-medium text-gray-900">{getMonthName(report.month)}</h4>
+                            <p className="text-sm text-gray-600">{report.transaction_count} transactions</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold text-gray-900">{formatCurrency(report.total_spent)}</p>
+                            {prevReport && (
+                              <p className={`text-xs ${change > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                {change > 0 ? '↑' : '↓'} {Math.abs(change).toFixed(1)}%
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add Transaction Tab */}
+        {activeTab === 'add' && (
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">Add New Transaction</h3>
+              </div>
+              <form onSubmit={handleAddTransaction} className="p-6 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
+                    <input
+                      type="date"
+                      value={newTransaction.date}
+                      onChange={(e) => setNewTransaction({...newTransaction, date: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Amount ($)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={newTransaction.amount}
+                      onChange={(e) => setNewTransaction({...newTransaction, amount: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="0.00"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                  <input
+                    type="text"
+                    value={newTransaction.description}
+                    onChange={(e) => setNewTransaction({...newTransaction, description: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Transaction description"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                  <select
+                    value={newTransaction.category}
+                    onChange={(e) => setNewTransaction({...newTransaction, category: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {categories.map(category => (
+                      <option key={category} value={category}>{category}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Account Type</label>
+                  <select
+                    value={newTransaction.account_type}
+                    onChange={(e) => setNewTransaction({...newTransaction, account_type: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="credit_card">Credit Card</option>
+                    <option value="debit">Debit Card</option>
+                    <option value="checking">Checking Account</option>
+                    <option value="savings">Savings Account</option>
+                  </select>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    Add Transaction
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Quick Import Section */}
+            <div className="mt-8 bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">Bulk Import</h3>
+                <p className="text-sm text-gray-600 mt-1">Upload a CSV file with columns: date, description, category, amount</p>
+              </div>
+              <div className="p-6">
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={async (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      const formData = new FormData();
+                      formData.append('file', file);
+                      try {
+                        await axios.post(`${API}/transactions/bulk-import`, formData);
+                        fetchData();
+                        e.target.value = '';
+                      } catch (error) {
+                        console.error('Error importing CSV:', error);
+                        alert('Error importing CSV file');
+                      }
+                    }
+                  }}
+                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -40,13 +507,7 @@ const Home = () => {
 function App() {
   return (
     <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <Dashboard />
     </div>
   );
 }
