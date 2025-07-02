@@ -92,9 +92,11 @@ const Dashboard = () => {
       transactionParams.append('sort_by', sortConfig.field);
       transactionParams.append('sort_order', sortConfig.direction);
 
+      const currentYear = new Date().getFullYear();
+      
       const [transactionsRes, monthlyRes, categoryRes, categoriesRes, sourcesRes] = await Promise.all([
         axios.get(`${API}/transactions?${transactionParams.toString()}`),
-        axios.get(`${API}/analytics/monthly-report?year=2024`),
+        axios.get(`${API}/analytics/monthly-report?year=${currentYear}`),
         axios.get(`${API}/analytics/category-breakdown`),
         axios.get(`${API}/categories`),
         axios.get(`${API}/transactions/sources`)
