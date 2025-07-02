@@ -254,7 +254,7 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
             has_date_pattern = re.search(r'\w{3}\s+\d{1,2}', line)
             has_amount = re.search(r'\d+\.\d{2}', line)
             
-            if has_date_pattern and has_amount:
+            if has_date_pattern and has_amount and len(line) > 30:  # Lowered threshold
                 print(f"POTENTIAL TRANSACTION LINE: {line}")
                 
                 transaction_match = None
@@ -277,17 +277,17 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                         category_str = ""
                         description = desc_and_cat
                         
-                        # Check for category keywords at the end
+                        # Check for category keywords at the end (order matters - longest first)
                         known_categories = [
                             'Foreign Currency Transactions',
                             'Hotel, Entertainment and Recreation', 
                             'Professional and Financial Services',
                             'Home and Office Improvement',
+                            'Personal and Household Expenses',
                             'Health and Education',
                             'Retail and Grocery',
                             'Transportation',
-                            'Restaurants',
-                            'Personal and Household Expenses'
+                            'Restaurants'
                         ]
                         
                         for cat in known_categories:
