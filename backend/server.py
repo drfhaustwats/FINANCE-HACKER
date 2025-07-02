@@ -437,8 +437,9 @@ def parse_date_string(date_str: str, statement_year: int) -> date:
                 # Smart year logic: if we're in July 2025 and see Oct/Nov dates, they're likely from 2024
                 current_year = datetime.now().year
                 if not statement_year:
-                    if month in [10, 11, 12] and datetime.now().month < 6:  # Oct/Nov/Dec but we're early in year
-                        year = current_year - 1
+                    # For Oct/Nov/Dec dates when we're in 2025, assume they're from 2024 
+                    if month in [10, 11, 12]:  # Oct/Nov/Dec
+                        year = 2024  # Most bank statements with these months are from 2024
                     elif month in [1, 2, 3] and datetime.now().month > 6:  # Jan/Feb/Mar but we're late in year  
                         year = current_year + 1
                     else:
