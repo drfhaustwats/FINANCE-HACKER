@@ -8,10 +8,12 @@ const API = `${BACKEND_URL}/api`;
 // Dashboard Components
 const Dashboard = () => {
   const [transactions, setTransactions] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [monthlyReports, setMonthlyReports] = useState([]);
   const [categoryBreakdown, setCategoryBreakdown] = useState([]);
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
+  const [uploadingPDF, setUploadingPDF] = useState(false);
 
   // Transaction form state
   const [newTransaction, setNewTransaction] = useState({
@@ -22,7 +24,21 @@ const Dashboard = () => {
     account_type: 'credit_card'
   });
 
-  const categories = [
+  // Category management state
+  const [newCategory, setNewCategory] = useState({
+    name: '',
+    color: '#3B82F6'
+  });
+  const [editingCategory, setEditingCategory] = useState(null);
+
+  // User management state (simple for now)
+  const [currentUser, setCurrentUser] = useState({
+    id: 'default_user',
+    name: 'You',
+    email: 'user@example.com'
+  });
+
+  const defaultCategories = [
     'Retail and Grocery',
     'Restaurants',
     'Transportation',
@@ -41,15 +57,17 @@ const Dashboard = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [transactionsRes, monthlyRes, categoryRes] = await Promise.all([
+      const [transactionsRes, monthlyRes, categoryRes, categoriesRes] = await Promise.all([
         axios.get(`${API}/transactions`),
         axios.get(`${API}/analytics/monthly-report`),
-        axios.get(`${API}/analytics/category-breakdown`)
+        axios.get(`${API}/analytics/category-breakdown`),
+        axios.get(`${API}/categories`)
       ]);
       
       setTransactions(transactionsRes.data);
       setMonthlyReports(monthlyRes.data);
       setCategoryBreakdown(categoryRes.data);
+      setCategories(categoriesRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
     }
@@ -67,7 +85,7 @@ const Dashboard = () => {
       setNewTransaction({
         date: new Date().toISOString().split('T')[0],
         description: '',
-        category: 'Retail and Grocery',
+        category: categories.length > 0 ? categories[0].name : 'Retail and Grocery',
         amount: '',
         account_type: 'credit_card'
       });
@@ -84,6 +102,65 @@ const Dashboard = () => {
       fetchData(); // Refresh data
     } catch (error) {
       console.error('Error deleting transaction:', error);
+    }
+  };
+
+  const handlePDFUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setUploadingPDF(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await axios.post(`${API}/transactions/pdf-import`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      alert(`PDF processed successfully!\n${response.data.message}\nImported: ${response.data.imported_count} transactions\nDuplicates skipped: ${response.data.duplicate_count || 0}`);
+      fetchData(); // Refresh data
+      event.target.value = ''; // Reset file input
+    } catch (error) {
+      console.error('Error uploading PDF:', error);
+      alert('Error processing PDF: ' + (error.response?.data?.detail || error.message));
+    } finally {
+      setUploadingPDF(false);
+    }
+  };
+
+  const handleAddCategory = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post(`${API}/categories`, newCategory);
+      setNewCategory({ name: '', color: '#3B82F6' });
+      fetchData(); // Refresh data
+    } catch (error) {
+      console.error('Error adding category:', error);
+    }
+  };
+
+  const handleUpdateCategory = async (categoryId, updates) => {
+    try {
+      await axios.put(`${API}/categories/${categoryId}`, updates);
+      setEditingCategory(null);
+      fetchData(); // Refresh data
+    } catch (error) {
+      console.error('Error updating category:', error);
+    }
+  };
+
+  const handleDeleteCategory = async (categoryId) => {
+    if (!window.confirm('Are you sure you want to delete this category?')) return;
+    
+    try {
+      await axios.delete(`${API}/categories/${categoryId}`);
+      fetchData(); // Refresh data
+    } catch (error) {
+      console.error('Error deleting category:', error);
+      alert('Error: ' + (error.response?.data?.detail || error.message));
     }
   };
 
@@ -125,12 +202,13 @@ const Dashboard = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">LifeTracker</h1>
-              <p className="text-gray-600 mt-1">Banking & Expense Analytics Dashboard</p>
+              <h1 className="text-3xl font-bold text-gray-900">LifeTracker v2.0</h1>
+              <p className="text-gray-600 mt-1">Advanced Banking & Expense Analytics</p>
             </div>
             <div className="text-right">
               <p className="text-sm text-gray-600">Total Transactions</p>
               <p className="text-2xl font-bold text-blue-600">{transactions.length}</p>
+              <p className="text-xs text-gray-500">Welcome, {currentUser.name}</p>
             </div>
           </div>
         </div>
@@ -144,7 +222,9 @@ const Dashboard = () => {
               { id: 'overview', name: 'Overview', icon: '📊' },
               { id: 'transactions', name: 'Transactions', icon: '💳' },
               { id: 'analytics', name: 'Analytics', icon: '📈' },
-              { id: 'add', name: 'Add Transaction', icon: '➕' }
+              { id: 'categories', name: 'Categories', icon: '🏷️' },
+              { id: 'add', name: 'Add Transaction', icon: '➕' },
+              { id: 'import', name: 'Import PDF', icon: '📄' }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -166,7 +246,7 @@ const Dashboard = () => {
         {activeTab === 'overview' && (
           <div className="space-y-8">
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="bg-white rounded-lg shadow p-6">
                 <div className="flex items-center">
                   <div className="p-2 bg-blue-100 rounded-md">
@@ -188,7 +268,7 @@ const Dashboard = () => {
                   </div>
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600">Categories</p>
-                    <p className="text-2xl font-bold text-gray-900">{categoryBreakdown.length}</p>
+                    <p className="text-2xl font-bold text-gray-900">{categories.length}</p>
                   </div>
                 </div>
               </div>
@@ -202,6 +282,20 @@ const Dashboard = () => {
                     <p className="text-sm font-medium text-gray-600">This Month</p>
                     <p className="text-2xl font-bold text-gray-900">
                       {monthlyReports.length > 0 ? formatCurrency(monthlyReports[monthlyReports.length - 1].total_spent) : '$0.00'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex items-center">
+                  <div className="p-2 bg-yellow-100 rounded-md">
+                    <span className="text-2xl">📄</span>
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">PDF Imports</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {transactions.filter(t => t.pdf_source).length}
                     </p>
                   </div>
                 </div>
@@ -264,11 +358,189 @@ const Dashboard = () => {
           </div>
         )}
 
+        {/* Import PDF Tab */}
+        {activeTab === 'import' && (
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">📄 Import Bank Statement PDF</h3>
+                <p className="text-sm text-gray-600 mt-1">Upload your bank statement PDF to automatically extract and categorize transactions</p>
+              </div>
+              <div className="p-6">
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                  <div className="space-y-4">
+                    <div className="text-6xl">📄</div>
+                    <div>
+                      <h4 className="text-lg font-medium text-gray-900">Upload PDF Statement</h4>
+                      <p className="text-gray-600">Supports CIBC, TD, RBC, and most major banks</p>
+                    </div>
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      onChange={handlePDFUpload}
+                      disabled={uploadingPDF}
+                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50"
+                    />
+                    {uploadingPDF && (
+                      <div className="flex items-center justify-center space-x-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                        <span className="text-blue-600">Processing PDF...</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Features List */}
+                <div className="mt-6 bg-blue-50 rounded-lg p-4">
+                  <h5 className="font-medium text-blue-900 mb-2">✨ Smart PDF Processing Features:</h5>
+                  <ul className="text-sm text-blue-800 space-y-1">
+                    <li>• Automatic transaction detection and parsing</li>
+                    <li>• Smart category assignment based on merchant names</li>
+                    <li>• Duplicate detection (won't import the same transaction twice)</li>
+                    <li>• Support for multiple bank statement formats</li>
+                    <li>• Date range detection and validation</li>
+                  </ul>
+                </div>
+
+                {/* Instructions */}
+                <div className="mt-6 bg-gray-50 rounded-lg p-4">
+                  <h5 className="font-medium text-gray-900 mb-2">📋 Instructions:</h5>
+                  <ol className="text-sm text-gray-700 space-y-1 list-decimal list-inside">
+                    <li>Download your bank statement PDF from your online banking</li>
+                    <li>Make sure it's a clear, text-based PDF (not a scanned image)</li>
+                    <li>Upload the file using the button above</li>
+                    <li>Review the imported transactions in the Transactions tab</li>
+                    <li>Adjust categories if needed</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Categories Tab */}
+        {activeTab === 'categories' && (
+          <div className="space-y-8">
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">Manage Categories</h3>
+                <p className="text-sm text-gray-600 mt-1">Customize your expense categories</p>
+              </div>
+              <div className="p-6">
+                {/* Add New Category Form */}
+                <form onSubmit={handleAddCategory} className="mb-6 p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-end space-x-4">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Category Name</label>
+                      <input
+                        type="text"
+                        value={newCategory.name}
+                        onChange={(e) => setNewCategory({...newCategory, name: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Enter category name"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
+                      <input
+                        type="color"
+                        value={newCategory.color}
+                        onChange={(e) => setNewCategory({...newCategory, color: e.target.value})}
+                        className="w-12 h-10 border border-gray-300 rounded-md"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      Add Category
+                    </button>
+                  </div>
+                </form>
+
+                {/* Categories List */}
+                <div className="space-y-3">
+                  {categories.map((category) => (
+                    <div key={category.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                      {editingCategory === category.id ? (
+                        <div className="flex items-center space-x-3 flex-1">
+                          <div 
+                            className="w-4 h-4 rounded-full" 
+                            style={{ backgroundColor: category.color }}
+                          ></div>
+                          <input
+                            type="text"
+                            defaultValue={category.name}
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') {
+                                handleUpdateCategory(category.id, { name: e.target.value });
+                              }
+                            }}
+                            className="flex-1 px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            autoFocus
+                          />
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleUpdateCategory(category.id, { name: document.activeElement.value })}
+                              className="text-green-600 hover:text-green-800"
+                            >
+                              ✓
+                            </button>
+                            <button
+                              onClick={() => setEditingCategory(null)}
+                              className="text-gray-600 hover:text-gray-800"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center space-x-3">
+                            <div 
+                              className="w-4 h-4 rounded-full" 
+                              style={{ backgroundColor: category.color }}
+                            ></div>
+                            <span className="font-medium text-gray-900">{category.name}</span>
+                            {category.is_default && (
+                              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Default</span>
+                            )}
+                          </div>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => setEditingCategory(category.id)}
+                              className="text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                              Edit
+                            </button>
+                            {!category.is_default && (
+                              <button
+                                onClick={() => handleDeleteCategory(category.id)}
+                                className="text-red-600 hover:text-red-800 text-sm"
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Transactions Tab */}
         {activeTab === 'transactions' && (
           <div className="bg-white rounded-lg shadow">
-            <div className="px-6 py-4 border-b border-gray-200">
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
               <h3 className="text-lg font-medium text-gray-900">Recent Transactions</h3>
+              <div className="text-sm text-gray-600">
+                PDF Imports: {transactions.filter(t => t.pdf_source).length} | Manual: {transactions.filter(t => !t.pdf_source).length}
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -278,6 +550,7 @@ const Dashboard = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -287,7 +560,7 @@ const Dashboard = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {formatDate(transaction.date)}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{transaction.description}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">{transaction.description}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
                           {transaction.category}
@@ -295,6 +568,13 @@ const Dashboard = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {formatCurrency(transaction.amount)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
+                        {transaction.pdf_source ? (
+                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded">PDF</span>
+                        ) : (
+                          <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded">Manual</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <button
@@ -312,7 +592,7 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Analytics Tab */}
+        {/* Analytics Tab - Enhanced */}
         {activeTab === 'analytics' && (
           <div className="space-y-8">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -438,6 +718,9 @@ const Dashboard = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     {categories.map(category => (
+                      <option key={category.id} value={category.name}>{category.name}</option>
+                    ))}
+                    {categories.length === 0 && defaultCategories.map(category => (
                       <option key={category} value={category}>{category}</option>
                     ))}
                   </select>
@@ -471,7 +754,7 @@ const Dashboard = () => {
             {/* Quick Import Section */}
             <div className="mt-8 bg-white rounded-lg shadow">
               <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">Bulk Import</h3>
+                <h3 className="text-lg font-medium text-gray-900">Bulk Import CSV</h3>
                 <p className="text-sm text-gray-600 mt-1">Upload a CSV file with columns: date, description, category, amount</p>
               </div>
               <div className="p-6">
