@@ -587,59 +587,147 @@ const Dashboard = () => {
 
         {/* Transactions Tab */}
         {activeTab === 'transactions' && (
-          <div className="bg-white rounded-lg shadow">
-            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-              <h3 className="text-lg font-medium text-gray-900">Recent Transactions</h3>
-              <div className="text-sm text-gray-600">
-                PDF Imports: {transactions.filter(t => t.pdf_source).length} | Manual: {transactions.filter(t => !t.pdf_source).length}
+          <div className="space-y-6">
+            {/* Filters */}
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Filters & Search</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    value={filters.startDate}
+                    onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                  <input
+                    type="date"
+                    value={filters.endDate}
+                    onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <select
+                    value={filters.category}
+                    onChange={(e) => handleFilterChange('category', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">All Categories</option>
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.name}>{cat.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">PDF Source</label>
+                  <select
+                    value={filters.pdfSource}
+                    onChange={(e) => handleFilterChange('pdfSource', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">All Sources</option>
+                    {pdfSources.map(source => (
+                      <option key={source} value={source}>{source}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={clearFilters}
+                    className="w-full px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  >
+                    Clear Filters
+                  </button>
+                </div>
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {transactions.map((transaction) => (
-                    <tr key={transaction.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatDate(transaction.date)}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">{transaction.description}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                          {transaction.category}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {formatCurrency(transaction.amount)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
-                        {transaction.pdf_source ? (
-                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded">PDF</span>
-                        ) : (
-                          <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded">Manual</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button
-                          onClick={() => handleDeleteTransaction(transaction.id)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          Delete
-                        </button>
-                      </td>
+
+            {/* Transactions Table */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Transactions ({transactions.length} {filters.startDate || filters.endDate || filters.category || filters.pdfSource ? 'filtered' : 'total'})
+                </h3>
+                <div className="text-sm text-gray-600">
+                  PDF Imports: {transactions.filter(t => t.pdf_source && t.pdf_source !== 'Manual').length} | Manual: {transactions.filter(t => !t.pdf_source || t.pdf_source === 'Manual').length}
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th 
+                        onClick={() => handleSort('date')}
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      >
+                        Date {sortConfig.field === 'date' && (sortConfig.direction === 'desc' ? '↓' : '↑')}
+                      </th>
+                      <th 
+                        onClick={() => handleSort('description')}
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      >
+                        Description {sortConfig.field === 'description' && (sortConfig.direction === 'desc' ? '↓' : '↑')}
+                      </th>
+                      <th 
+                        onClick={() => handleSort('category')}
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      >
+                        Category {sortConfig.field === 'category' && (sortConfig.direction === 'desc' ? '↓' : '↑')}
+                      </th>
+                      <th 
+                        onClick={() => handleSort('amount')}
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                      >
+                        Amount {sortConfig.field === 'amount' && (sortConfig.direction === 'desc' ? '↓' : '↑')}
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {transactions.map((transaction) => (
+                      <tr key={transaction.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {formatDate(transaction.date)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate" title={transaction.description}>
+                          {transaction.description}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                            {transaction.category}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {formatCurrency(transaction.amount)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
+                          {transaction.pdf_source && transaction.pdf_source !== 'Manual' ? (
+                            <span className="bg-green-100 text-green-800 px-2 py-1 rounded" title={transaction.pdf_source}>
+                              {transaction.pdf_source.length > 15 ? transaction.pdf_source.substring(0, 12) + '...' : transaction.pdf_source}
+                            </span>
+                          ) : (
+                            <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded">Manual</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <button
+                            onClick={() => handleDeleteTransaction(transaction.id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
