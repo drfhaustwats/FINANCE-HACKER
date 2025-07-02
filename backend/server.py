@@ -746,8 +746,8 @@ async def update_transaction(
     # Return updated transaction
     updated_transaction = await db.transactions.find_one({"id": transaction_id, "user_id": user_id})
     if updated_transaction:
-        # Convert datetime to string for response
-        if 'created_at' in updated_transaction:
+        # Convert datetime to string for response (only if it's actually a datetime object)
+        if 'created_at' in updated_transaction and hasattr(updated_transaction['created_at'], 'isoformat'):
             updated_transaction['created_at'] = updated_transaction['created_at'].isoformat()
         return updated_transaction
     else:
