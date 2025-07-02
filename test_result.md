@@ -337,7 +337,7 @@ backend:
         comment: "Issue likely related to user_id mismatch between frontend calls and backend analytics endpoints. Frontend doesn't pass user_id but backend requires it."
       - working: false
         agent: "testing"
-        comment: "Confirmed that the monthly report endpoint (/api/analytics/monthly-report) is working correctly but requires a year parameter to return data. When testing with ?year=2024, the endpoint returns data for all three months (2024-09, 2024-10, 2024-11) with correct category breakdowns and spending totals. The issue is likely that the frontend is not passing the year parameter to the endpoint, causing it to return an empty array."
+        comment: "Confirmed that the monthly report endpoint (/api/analytics/monthly-report) is working correctly but requires a year parameter to return data. When testing with ?year=2024, the endpoint returns data for all three months (2024-09, 2024-10, 2024-11) with correct category breakdowns and spending totals. The issue is in the frontend code at line 88 in App.js, where the API call is made without the year parameter: axios.get(`${API}/analytics/monthly-report`). This needs to be updated to include the current year: axios.get(`${API}/analytics/monthly-report?year=${new Date().getFullYear()}`)."
 
   - task: "Date extraction accuracy"
     implemented: true
