@@ -9,6 +9,7 @@ import LoadingScreen from './components/LoadingScreen';
 // Main Dashboard Component (wrapped with authentication)
 function Dashboard() {
   const API = process.env.REACT_APP_BACKEND_URL + '/api' || 'http://localhost:8001/api';
+  const { getCurrentUserId, viewMode, getViewModeLabel } = useAuth();
   
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]);
