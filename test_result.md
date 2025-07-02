@@ -364,9 +364,9 @@ backend:
     implemented: true
     working: false
     file: "/app/backend/server.py"
-    stuck_count: 1
+    stuck_count: 2
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "user"
@@ -374,6 +374,9 @@ backend:
       - working: "NA"
         agent: "main"
         comment: "Need to investigate why specific transactions are being skipped during PDF parsing. May be regex pattern issue or text extraction problem."
+      - working: false
+        agent: "testing"
+        comment: "Confirmed that the Lovisa Alberta AB transaction is missing from the database. Searched for transactions containing 'lovisa' or 'alberta' and found none matching the description. Examined all transactions from 'Account Statement 4.pdf' and found 15 transactions, but none for Lovisa. Found transactions with similar amounts (OPENAI subscription at $29.26 and REAL CDN SUPERSTORE at $29.63), but no exact match for the Lovisa transaction. The issue appears to be in the PDF parsing logic, specifically in the regex patterns used to extract transactions from the PDF text. The pattern may not be correctly identifying the Lovisa transaction line or it might be getting filtered out during processing."
 
 frontend:
   - task: "Frontend testing"
