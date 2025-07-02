@@ -72,26 +72,28 @@ def create_test_pdf(filepath):
     c.setFont("Helvetica", 12)
     
     # Add a title
-    c.drawString(100, 750, "Bank Statement")
+    c.drawString(100, 750, "CIBC DIVIDEND VISA INFINITE CARD")
     c.drawString(100, 730, "Account: XXXX-XXXX-XXXX-1234")
-    c.drawString(100, 710, "Statement Period: Oct 15, 2024 - Nov 15, 2024")
+    c.drawString(100, 710, "Statement Period: October 15 to November 15, 2024")
+    c.drawString(100, 690, "JOHN DOE")
     
     # Add transaction headers
-    c.drawString(100, 670, "Date       Description                                Amount")
-    c.drawString(100, 650, "----------------------------------------------------------------")
+    c.drawString(100, 650, "TRANS   POST    DESCRIPTION                           SPEND CATEGORIES        AMOUNT")
+    c.drawString(100, 630, "--------------------------------------------------------------------------------")
     
-    # Add some transactions
+    # Add some transactions including the problematic Lovisa transaction
     transactions = [
-        ("Oct 15", "Oct 16", "AMAZON.COM PURCHASE                      $45.99"),
-        ("Oct 17", "Oct 18", "STARBUCKS COFFEE                         $5.75"),
-        ("Oct 19", "Oct 20", "UBER RIDE                                $12.50"),
-        ("Oct 21", "Oct 22", "WALMART STORE #123                       $67.89"),
-        ("Oct 23", "Oct 24", "NETFLIX SUBSCRIPTION                     $14.99")
+        ("Oct 13", "Oct 15", "Lovisa Alberta AB", "Retail and Grocery", "29.39"),
+        ("Oct 15", "Oct 16", "AMAZON.COM PURCHASE", "Shopping", "45.99"),
+        ("Oct 17", "Oct 18", "STARBUCKS COFFEE", "Restaurants", "5.75"),
+        ("Oct 19", "Oct 20", "UBER RIDE", "Transportation", "12.50"),
+        ("Oct 21", "Oct 22", "WALMART STORE #123", "Retail and Grocery", "67.89"),
+        ("Oct 23", "Oct 24", "NETFLIX SUBSCRIPTION", "Hotel, Entertainment and Recreation", "14.99")
     ]
     
-    y_position = 630
+    y_position = 610
     for trans in transactions:
-        c.drawString(100, y_position, f"{trans[0]}    {trans[1]}    {trans[2]}")
+        c.drawString(100, y_position, f"{trans[0]}    {trans[1]}    {trans[2]}    {trans[3]}    {trans[4]}")
         y_position -= 20
     
     c.save()
