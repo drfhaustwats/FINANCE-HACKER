@@ -764,6 +764,13 @@ const Dashboard = () => {
                   <div className="text-sm text-gray-600">
                     PDF Imports: {transactions.filter(t => t.pdf_source && t.pdf_source !== 'Manual').length} | Manual: {transactions.filter(t => !t.pdf_source || t.pdf_source === 'Manual').length}
                   </div>
+                  <button
+                    onClick={handleExportToExcel}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center space-x-2"
+                  >
+                    <span>📊</span>
+                    <span>Export Excel</span>
+                  </button>
                   {selectedTransactions.size > 0 && (
                     <button
                       onClick={handleBulkDelete}
