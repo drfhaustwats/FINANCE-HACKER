@@ -31,12 +31,18 @@ const Dashboard = () => {
   });
   const [editingCategory, setEditingCategory] = useState(null);
 
-  // User management state (simple for now)
-  const [currentUser, setCurrentUser] = useState({
-    id: 'default_user',
-    name: 'You',
-    email: 'user@example.com'
+  // Filter and sorting state
+  const [filters, setFilters] = useState({
+    startDate: '',
+    endDate: '',
+    category: '',
+    pdfSource: ''
   });
+  const [sortConfig, setSortConfig] = useState({
+    field: 'date',
+    direction: 'desc'
+  });
+  const [pdfSources, setPdfSources] = useState([]);
 
   const defaultCategories = [
     'Retail and Grocery',
