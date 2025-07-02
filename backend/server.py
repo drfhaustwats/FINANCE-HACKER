@@ -250,14 +250,16 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
             line_upper = line.upper()
             
             # Only skip if the line is clearly a header (contains multiple header keywords or exact matches)
-            header_keywords = ['CARD NUMBER', 'PAGE', 'CIBC', 'DIVIDEND', 'VISA', 'YOUR PAYMENTS', 'YOUR NEW CHARGES']
+            # Use word boundaries to avoid false positives (e.g., "LOVISA" containing "VISA")
+            header_keywords = [r'\bCARD NUMBER\b', r'\bPAGE\b', r'\bCIBC\b', r'\bDIVIDEND\b', r'\bVISA\b', r'\bYOUR PAYMENTS\b', r'\bYOUR NEW CHARGES\b']
             table_headers = ['TRANS   POST', 'DATE    DATE', 'SPEND CATEGORIES', 'AMOUNT($)']
             
             # Skip if it's clearly a header line
             skip_reason = None
-            if any(header in line_upper for header in header_keywords):
+            if any(re.search(header, line_upper) for header in header_keywords):
                 skip_line = True
-                skip_reason = f"Contains header keyword: {[h for h in header_keywords if h in line_upper]}"
+                matching_headers = [h for h in header_keywords if re.search(h, line_upper)]
+                skip_reason = f"Contains header keyword: {matching_headers}"
             elif any(header in line_upper for header in table_headers):
                 skip_line = True
                 skip_reason = f"Contains table header: {[h for h in table_headers if h in line_upper]}"
