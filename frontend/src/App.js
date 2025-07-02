@@ -1024,10 +1024,23 @@ const Dashboard = () => {
                       const change = prevReport ? 
                         ((report.total_spent - prevReport.total_spent) / prevReport.total_spent * 100) : 0;
                       
+                      const currentDate = new Date();
+                      const currentMonth = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}`;
+                      const isCurrentMonth = report.month === currentMonth;
+                      
                       return (
-                        <div key={report.month} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div key={report.month} className={`flex items-center justify-between p-3 border rounded-lg ${
+                          isCurrentMonth ? 'bg-blue-50 border-blue-200' : ''
+                        }`}>
                           <div>
-                            <h4 className="font-medium text-gray-900">{getMonthName(report.month)}</h4>
+                            <div className="flex items-center space-x-2">
+                              <h4 className="font-medium text-gray-900">{getMonthName(report.month)}</h4>
+                              {isCurrentMonth && (
+                                <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                                  Current
+                                </span>
+                              )}
+                            </div>
                             <p className="text-sm text-gray-600">{report.transaction_count} transactions</p>
                           </div>
                           <div className="text-right">
