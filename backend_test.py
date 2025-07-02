@@ -764,7 +764,7 @@ def run_all_tests():
         "Transactions by Date": test_transactions_by_date(),
         "Database State": test_database_state(),
         "Monthly Report with Year Parameter": test_monthly_report_with_year(),
-        "Check for Lovisa Transaction": test_check_for_lovisa(),
+        "Check for Lovisa Transaction and Update": test_check_for_lovisa(),
         "Delete Transaction": test_delete_transaction(),
         "Delete Category": test_delete_category()
     }
