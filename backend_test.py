@@ -683,7 +683,7 @@ def test_monthly_report_with_year():
     except Exception as e:
         return print_test_result("Monthly Report with Year Parameter", False, error=str(e))
 
-# Test 23: Check for specific transaction (Lovisa)
+# Test 23: Check for specific transaction (Lovisa) and test transaction update API
 def test_check_for_lovisa():
     try:
         # Search for transactions with 'lovisa' in description
@@ -697,9 +697,45 @@ def test_check_for_lovisa():
         for transaction in lovisa_transactions:
             print(f"  {transaction.get('date')}: {transaction.get('description')} - ${transaction.get('amount')}")
         
-        return print_test_result("Check for Lovisa Transaction", success, response)
+        # If we found the Lovisa transaction, test updating its category
+        if lovisa_transactions:
+            lovisa_transaction = lovisa_transactions[0]
+            transaction_id = lovisa_transaction.get("id")
+            
+            # Get available categories
+            categories_response = requests.get(f"{API_URL}/categories")
+            if categories_response.status_code == 200 and categories_response.json():
+                # Choose a different category than the current one
+                current_category = lovisa_transaction.get("category")
+                available_categories = [c for c in categories_response.json() if c.get("name") != current_category]
+                
+                if available_categories:
+                    new_category = available_categories[0].get("name")
+                    
+                    # Update the transaction with a new category
+                    update_data = {"category": new_category}
+                    update_response = requests.put(f"{API_URL}/transactions/{transaction_id}", json=update_data)
+                    
+                    if update_response.status_code == 200:
+                        print(f"Successfully updated Lovisa transaction category from '{current_category}' to '{new_category}'")
+                        
+                        # Verify the update was successful
+                        verify_response = requests.get(f"{API_URL}/transactions")
+                        if verify_response.status_code == 200:
+                            updated_transaction = next((t for t in verify_response.json() if t.get("id") == transaction_id), None)
+                            
+                            if updated_transaction and updated_transaction.get("category") == new_category:
+                                print(f"Verified category update: {updated_transaction}")
+                            else:
+                                print("WARNING: Category update verification failed")
+                                success = False
+                    else:
+                        print(f"Failed to update transaction: {update_response.text}")
+                        success = False
+        
+        return print_test_result("Check for Lovisa Transaction and Update", success, response)
     except Exception as e:
-        return print_test_result("Check for Lovisa Transaction", False, error=str(e))
+        return print_test_result("Check for Lovisa Transaction and Update", False, error=str(e))
 
 # Run all tests
 def run_all_tests():
