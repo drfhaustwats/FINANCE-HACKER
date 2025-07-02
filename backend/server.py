@@ -275,10 +275,13 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                 transaction_match = None
                 
                 # Strategy 1: Amount at the end approach (most reliable)
-                amount_matches = re.findall(r'(\d+\.\d{2})', line)
+                amount_matches = re.findall(r'(\d{1,3}(?:,\d{3})*\.\d{2})', line)
                 if amount_matches:
                     # Take the last amount as the transaction amount
                     amount_str = amount_matches[-1]
+                    
+                    # Remove commas from amount before converting to float
+                    clean_amount_str = amount_str.replace(',', '')
                     
                     # Find where this amount starts in the line
                     amount_pos = line.rfind(amount_str)
@@ -291,6 +294,14 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                         
                         # Clean up the description and category part
                         desc_and_cat = description_and_category.strip()
+                        
+                        # Skip payment transactions - these are not expenses
+                        if any(payment_keyword in desc_and_cat.upper() for payment_keyword in [
+                            'PAYMENT THANK YOU', 'PAIEMENT MERCI', 'PAYMENT - THANK YOU', 
+                            'THANK YOU FOR YOUR PAYMENT', 'PAYMENT RECEIVED'
+                        ]):
+                            print(f"SKIPPED PAYMENT: {desc_and_cat}")
+                            continue
                         
                         # Try to identify where description ends and category begins
                         category_str = ""
@@ -324,8 +335,8 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                                 description = parts[0].strip()
                                 category_str = ' '.join(parts[1:]).strip()
                         
-                        transaction_match = (trans_date_str, post_date_str, description, category_str, amount_str)
-                        print(f"EXTRACTED: Date={trans_date_str}, Desc='{description}', Cat='{category_str}', Amt={amount_str}")
+                        transaction_match = (trans_date_str, post_date_str, description, category_str, clean_amount_str)
+                        print(f"EXTRACTED: Date={trans_date_str}, Desc='{description}', Cat='{category_str}', Amt={clean_amount_str} (original: {amount_str})")
                     else:
                         print(f"Could not extract dates from: {line_without_amount}")
                 
