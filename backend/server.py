@@ -116,6 +116,45 @@ class CategorySpending(BaseModel):
     count: int
     percentage: float
 
+# Authentication Models
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
+    username: Optional[str] = None
+
+class User(BaseModel):
+    id: str
+    email: str
+    username: str
+    full_name: str
+    role: str = "user"
+    household_id: Optional[str] = None
+    created_at: datetime
+    last_login: Optional[datetime] = None
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    email: Optional[str] = None
+
+# Household Models
+class HouseholdCreate(BaseModel):
+    name: str
+
+class Household(BaseModel):
+    id: str
+    name: str
+    created_by: str
+    members: List[str]
+    created_at: datetime
+
 # PDF Processing Functions
 def extract_text_from_pdf(file_content: bytes) -> str:
     """Extract text from PDF using multiple methods for better reliability"""
