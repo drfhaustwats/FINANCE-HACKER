@@ -197,7 +197,7 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
         'Transportation': ['lyft', 'uber', 'taxi', 'gas', 'petro', 'shell', 'esso', 'transit', 'ride'],
         'Home and Office Improvement': ['home depot', 'lowes', 'staples', 'canadian tire', 'ikea', 'office', 'stokes'],
         'Hotel, Entertainment and Recreation': ['hotel', 'movie', 'netflix', 'spotify', 'apple.com', 'entertainment', 'apple.com/bill'],
-        'Professional and Financial Services': ['bank', 'fee', 'transfer', 'mortgage', 'insurance', 'legal'],
+        'Professional and Financial Services': ['bank', 'fee', 'transfer', 'mortgage', 'insurance', 'legal', 'openai', 'chatgpt', 'ai'],
         'Health and Education': ['pharmacy', 'doctor', 'dental', 'hospital', 'school', 'university'],
         'Foreign Currency Transactions': ['foreign', 'currency', 'exchange', 'international']
     }
