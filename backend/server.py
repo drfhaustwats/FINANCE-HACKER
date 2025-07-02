@@ -214,134 +214,75 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
         r'(\w{3}\s+\d{1,2})\s+([A-Z0-9\s\#\*\.\-\/\&\(\)]{10,})\s+(\d+\.\d{2})(?:\s|$)'
     ]
     
-    # Category mapping based on description keywords
-    category_keywords = {
-        'Retail and Grocery': ['superstore', 'grocery', 'dollarama', 'walmart', 'costco', 'loblaws', 'metro', 'sobeys', 'winniersho', 'john & ross'],
-        'Restaurants': ['restaurant', 'coffee', 'starbucks', 'tim hortons', 'mcdonalds', 'pizza', 'food', 'dining', 'cafe', 'sky 360', 'sky360'],
-        'Transportation': ['lyft', 'uber', 'taxi', 'gas', 'petro', 'shell', 'esso', 'transit', 'ride'],
-        'Home and Office Improvement': ['home depot', 'lowes', 'staples', 'canadian tire', 'ikea', 'office', 'stokes'],
-        'Hotel, Entertainment and Recreation': ['hotel', 'movie', 'netflix', 'spotify', 'apple.com', 'entertainment', 'apple.com/bill'],
-        'Professional and Financial Services': ['bank', 'fee', 'transfer', 'mortgage', 'insurance', 'legal', 'openai', 'chatgpt', 'ai'],
-        'Health and Education': ['pharmacy', 'doctor', 'dental', 'hospital', 'school', 'university'],
-        'Foreign Currency Transactions': ['foreign', 'currency', 'exchange', 'international']
-    }
+def parse_transactions_from_text(text: str, user_id: str, source_filename: str = None) -> List[dict]:
+    """Parse transactions from extracted PDF text - enhanced for CIBC format"""
+    transactions = []
     
-    lines = text.split('\n')
+    # Extract metadata first
+    metadata = extract_pdf_metadata(text)
+    statement_year = metadata.get('statement_year', datetime.now().year)
+    user_name = metadata.get('user_name', 'Unknown User')
     
-    # Process all lines to catch transactions from all pages
-    for line_num, line in enumerate(lines):
-        line = line.strip()
-        if not line or len(line) < 15:  # Skip very short lines
+    print(f"Extracted metadata: User: {user_name}, Year: {statement_year}")
+    
+    # Split by pages and tables to process each section
+    sections = text.split('--- PAGE')
+    
+    for section_num, section in enumerate(sections):
+        if not section.strip():
             continue
             
-        # Skip header lines and section headers
-        if any(header in line.upper() for header in [
-            'TRANS', 'DATE', 'DESCRIPTION', 'AMOUNT', 'CATEGORY', 'SPEND CATEGORIES',
-            'YOUR PAYMENTS', 'YOUR NEW CHARGES', 'CARD NUMBER', 'ACCOUNT AT A GLANCE',
-            'STATEMENT', 'PAGE', 'DIVIDEND', 'VISA', 'CIBC'
-        ]):
-            continue
-            
-        # Debug: print lines that might contain transactions
-        if re.search(r'\w{3}\s+\d{1,2}', line) and re.search(r'\d+\.\d{2}', line):
-            print(f"Line {line_num}: {line}")
-            
-        # Process patterns in order of preference (most specific first)
-        matched = False
-        for pattern_num, pattern in enumerate(patterns):
-            if matched:  # Skip other patterns if we already found a match
-                break
+        print(f"\n=== PROCESSING SECTION {section_num} ===")
+        print(f"Section preview: {section[:500]}...")
+        
+        lines = section.split('\n')
+        
+        for line_num, line in enumerate(lines):
+            line = line.strip()
+            if not line or len(line) < 15:
+                continue
                 
-            matches = re.findall(pattern, line, re.IGNORECASE)
-            for match in matches:
+            # Skip header lines
+            if any(header in line.upper() for header in [
+                'TRANS', 'POST', 'DESCRIPTION', 'SPEND CATEGORIES', 'AMOUNT',
+                'CARD NUMBER', 'PAGE', 'CIBC', 'DIVIDEND', 'VISA'
+            ]):
+                continue
+            
+            # Look for transaction patterns based on your PDF
+            # Pattern 1: Oct 22  Oct 24  OPENAI *CHATGPT SUBSCR HTTPSOPENAI.CA  Foreign Currency Transactions  29.82
+            # Pattern 2: Nov 14  Nov 15  A&W FOREST LAWN CALGARY AB  Restaurants  24.00
+            
+            # Main CIBC transaction pattern
+            transaction_match = re.search(
+                r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+([A-Z0-9\*\#\s\.\-\/\&\(\)]+?)\s+([A-Za-z\s,&]+?)\s+(\d+\.\d{2})(?:\s|$)',
+                line
+            )
+            
+            if transaction_match:
+                trans_date_str, post_date_str, description, category_str, amount_str = transaction_match.groups()
+                
+                print(f"LINE {line_num}: {line}")
+                print(f"MATCHED: Trans={trans_date_str}, Post={post_date_str}, Desc='{description}', Cat='{category_str}', Amt={amount_str}")
+                
                 try:
-                    print(f"Pattern {pattern_num} matched: {match}")
-                    matched = True  # Mark as matched to prevent other patterns from processing this line
-                    
-                    if len(match) == 5:
-                        # Full CIBC format: trans_date, post_date, description, category, amount
-                        trans_date_str, post_date_str, description, category_from_pdf, amount_str = match
-                        
-                        # Use TRANSACTION DATE (first date), not post date
-                        date_str = trans_date_str
-                        
-                    elif len(match) == 4:
-                        # Format without category: trans_date, post_date, description, amount
-                        trans_date_str, post_date_str, description, amount_str = match
-                        category_from_pdf = None
-                        
-                        # Use TRANSACTION DATE (first date)
-                        date_str = trans_date_str
-                        
-                    elif len(match) == 3:
-                        # Simple format: date, description, amount
-                        date_str, description, amount_str = match
-                        category_from_pdf = None
-                        
-                    else:
-                        continue
-                    
-                    # Clean amount - ensure it's properly decimal formatted
-                    amount_str = re.sub(r'[^\d.]', '', amount_str)
-                    if '.' not in amount_str or len(amount_str.split('.')[1]) != 2:
-                        continue  # Skip if not proper decimal format
-                    
+                    # Parse amount
                     amount = float(amount_str)
-                    
-                    # Skip very small amounts (likely fees) or very large amounts (likely errors)
                     if amount < 0.01 or amount > 50000:
+                        print(f"Skipping amount {amount} (out of range)")
                         continue
                     
-                    # Clean description - remove extra spaces and limit length
+                    # Clean description
                     description = re.sub(r'\s+', ' ', description.strip())
-                    description = description[:100]
                     
-                    # Parse date using the statement year for context
-                    transaction_date = None
-                    try:
-                        # Mon DD format (like Nov 14)
-                        month_map = {
-                            'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-                            'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
-                        }
-                        
-                        parts = date_str.split()
-                        if len(parts) == 2:
-                            month_name, day = parts
-                            month = month_map.get(month_name[:3], None)
-                            if month:
-                                # Use the statement year as context
-                                year = statement_year
-                                transaction_date = date(year, month, int(day))
-                                print(f"Parsed date: {date_str} -> {transaction_date}")
-                        
-                    except Exception as e:
-                        print(f"Date parsing error for '{date_str}': {e}")
-                        continue
-                    
+                    # Parse transaction date (use trans_date, not post_date!)
+                    transaction_date = parse_date_string(trans_date_str, statement_year)
                     if not transaction_date:
+                        print(f"Failed to parse date: {trans_date_str}")
                         continue
                     
-                    # Use category from PDF if valid, otherwise auto-categorize
-                    category = None
-                    if category_from_pdf and len(category_from_pdf.strip()) > 2:
-                        # Extract just the category name, ignore location info
-                        for known_cat in ['Retail and Grocery', 'Restaurants', 'Transportation', 'Home and Office Improvement', 
-                                        'Hotel, Entertainment and Recreation', 'Professional and Financial Services', 
-                                        'Health and Education', 'Foreign Currency Transactions', 'Personal and Household Expenses']:
-                            if known_cat.lower() in category_from_pdf.lower():
-                                category = known_cat
-                                break
-                    
-                    # Auto-categorize based on description if no valid category from PDF
-                    if not category:
-                        description_lower = description.lower()
-                        category = 'Personal and Household Expenses'  # Default
-                        
-                        for cat, keywords in category_keywords.items():
-                            if any(keyword in description_lower for keyword in keywords):
-                                category = cat
-                                break
+                    # Clean and categorize
+                    category = clean_category(category_str, description)
                     
                     # Create transaction
                     transaction = {
@@ -352,30 +293,128 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                         'account_type': 'credit_card',
                         'user_id': user_id,
                         'pdf_source': source_filename or 'pdf_import',
-                        'user_name': user_name  # Add extracted user name
+                        'user_name': user_name
                     }
                     
                     transactions.append(transaction)
-                    print(f"✅ Added: {description} -> ${amount} on {transaction_date} ({category})")
+                    print(f"✅ ADDED: {description} -> ${amount} on {transaction_date} ({category})")
                     
                 except Exception as e:
-                    print(f"❌ Error parsing transaction from line: {line}, error: {e}")
+                    print(f"❌ Error processing transaction: {e}")
                     continue
+            
+            # Alternative pattern for table rows with | separators
+            elif '|' in line and re.search(r'\d+\.\d{2}', line):
+                print(f"TABLE ROW: {line}")
+                parts = [p.strip() for p in line.split('|')]
+                if len(parts) >= 5:
+                    try:
+                        # Assume format: trans_date | post_date | description | category | amount
+                        trans_date_str = parts[0]
+                        description = parts[2] if len(parts) > 2 else ""
+                        category_str = parts[3] if len(parts) > 3 else ""
+                        amount_str = parts[-1]  # Last part should be amount
+                        
+                        # Extract numeric amount
+                        amount_match = re.search(r'(\d+\.\d{2})', amount_str)
+                        if amount_match:
+                            amount = float(amount_match.group(1))
+                            
+                            transaction_date = parse_date_string(trans_date_str, statement_year)
+                            if transaction_date and amount > 0.01:
+                                category = clean_category(category_str, description)
+                                
+                                transaction = {
+                                    'date': transaction_date.isoformat(),
+                                    'description': description.strip(),
+                                    'category': category,
+                                    'amount': amount,
+                                    'account_type': 'credit_card',
+                                    'user_id': user_id,
+                                    'pdf_source': source_filename or 'pdf_import',
+                                    'user_name': user_name
+                                }
+                                
+                                transactions.append(transaction)
+                                print(f"✅ TABLE ADDED: {description} -> ${amount} on {transaction_date}")
+                                
+                    except Exception as e:
+                        print(f"❌ Error processing table row: {e}")
+                        continue
     
-    # Remove duplicates based on date, description (first few words), and amount
+    print(f"\n=== TOTAL TRANSACTIONS FOUND: {len(transactions)} ===")
+    
+    # Remove duplicates
+    unique_transactions = remove_duplicates(transactions)
+    
+    return unique_transactions
+
+def parse_date_string(date_str: str, statement_year: int) -> date:
+    """Parse date string like 'Oct 22' with given year"""
+    try:
+        month_map = {
+            'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+            'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+        }
+        
+        parts = date_str.strip().split()
+        if len(parts) == 2:
+            month_name, day = parts
+            month = month_map.get(month_name[:3], None)
+            if month:
+                return date(statement_year, month, int(day))
+    except:
+        pass
+    return None
+
+def clean_category(category_str: str, description: str) -> str:
+    """Clean and standardize category"""
+    # Category mapping
+    category_keywords = {
+        'Retail and Grocery': ['superstore', 'grocery', 'dollarama', 'walmart', 'costco', 'loblaws', 'metro', 'sobeys', 'john & ross', 't&t'],
+        'Restaurants': ['restaurant', 'coffee', 'starbucks', 'tim hortons', 'mcdonalds', 'pizza', 'food', 'dining', 'cafe', 'a&w', 'forest lawn'],
+        'Transportation': ['lyft', 'uber', 'taxi', 'gas', 'petro', 'shell', 'esso', 'transit', 'ride'],
+        'Home and Office Improvement': ['home depot', 'lowes', 'staples', 'canadian tire', 'ikea', 'office', 'stokes'],
+        'Hotel, Entertainment and Recreation': ['hotel', 'movie', 'netflix', 'spotify', 'apple.com', 'entertainment', 'apple.com/bill'],
+        'Professional and Financial Services': ['bank', 'fee', 'transfer', 'mortgage', 'insurance', 'legal', 'openai', 'chatgpt'],
+        'Health and Education': ['pharmacy', 'doctor', 'dental', 'hospital', 'school', 'university'],
+        'Foreign Currency Transactions': ['foreign', 'currency', 'exchange', 'international', 'usd']
+    }
+    
+    # First try to use provided category if it looks valid
+    if category_str and len(category_str.strip()) > 2:
+        category_clean = category_str.strip()
+        # Check if it matches known categories
+        for known_cat in category_keywords.keys():
+            if known_cat.lower() in category_clean.lower():
+                return known_cat
+    
+    # Auto-categorize based on description
+    description_lower = description.lower()
+    
+    for cat, keywords in category_keywords.items():
+        if any(keyword in description_lower for keyword in keywords):
+            return cat
+    
+    return 'Personal and Household Expenses'  # Default
+
+def remove_duplicates(transactions: List[dict]) -> List[dict]:
+    """Remove duplicate transactions"""
     seen = set()
     unique_transactions = []
+    
     for transaction in transactions:
-        # Create a key using date, first few words of description, and amount
-        desc_key = ' '.join(transaction['description'].split()[:3])  # First 3 words
+        # Create key using date, first few words of description, and amount
+        desc_key = ' '.join(transaction['description'].split()[:3])
         key = (transaction['date'], desc_key, transaction['amount'])
+        
         if key not in seen:
             seen.add(key)
             unique_transactions.append(transaction)
         else:
             print(f"Skipping duplicate: {transaction['description']} on {transaction['date']}")
     
-    print(f"\nTotal parsed: {len(transactions)}, Unique: {len(unique_transactions)}")
+    print(f"Total parsed: {len(transactions)}, Unique: {len(unique_transactions)}")
     return unique_transactions
 
 # Helper function to get user (for now, use default user)
