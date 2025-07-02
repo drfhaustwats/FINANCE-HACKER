@@ -835,7 +835,9 @@ const Dashboard = () => {
                                 onChange={(e) => setTempTransactionCategory(e.target.value)}
                                 className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
                               >
-                                {defaultCategories.map(category => (
+                                {categories.length > 0 ? categories.map(category => (
+                                  <option key={category.id} value={category.name}>{category.name}</option>
+                                )) : defaultCategories.map(category => (
                                   <option key={category} value={category}>{category}</option>
                                 ))}
                               </select>
