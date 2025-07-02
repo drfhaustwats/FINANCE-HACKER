@@ -222,11 +222,17 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
         if re.search(r'\w{3}\s+\d{1,2}', line) and re.search(r'\d+\.\d{2}', line):
             print(f"Line {line_num}: {line}")
             
+        # Process patterns in order of preference (most specific first)
+        matched = False
         for pattern_num, pattern in enumerate(patterns):
+            if matched:  # Skip other patterns if we already found a match
+                break
+                
             matches = re.findall(pattern, line, re.IGNORECASE)
             for match in matches:
                 try:
                     print(f"Pattern {pattern_num} matched: {match}")
+                    matched = True  # Mark as matched to prevent other patterns from processing this line
                     
                     if len(match) == 5:
                         # Full CIBC format: trans_date, post_date, description, category, amount
