@@ -691,6 +691,25 @@ async def delete_transaction(transaction_id: str, user_id: str = Depends(get_cur
         raise HTTPException(status_code=404, detail="Transaction not found")
     return {"message": "Transaction deleted successfully"}
 
+@api_router.post("/transactions/bulk-delete")
+async def bulk_delete_transactions(
+    transaction_ids: List[str], 
+    user_id: str = Depends(get_current_user_id)
+):
+    """Delete multiple transactions at once"""
+    if not transaction_ids:
+        raise HTTPException(status_code=400, detail="No transaction IDs provided")
+    
+    result = await db.transactions.delete_many({
+        "id": {"$in": transaction_ids}, 
+        "user_id": user_id
+    })
+    
+    return {
+        "message": f"Successfully deleted {result.deleted_count} transactions",
+        "deleted_count": result.deleted_count
+    }
+
 # PDF Processing Endpoint
 @api_router.post("/transactions/pdf-import")
 async def import_transactions_from_pdf(
