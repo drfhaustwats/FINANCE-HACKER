@@ -56,9 +56,6 @@ const Dashboard = () => {
   const [selectAll, setSelectAll] = useState(false);
 
   // Transaction category editing state
-  const [tempTransactionCategory, setTempTransactionCategory] = useState('');
-
-  // Transaction category editing state
   const [editingTransactionId, setEditingTransactionId] = useState(null);
   const [tempTransactionCategory, setTempTransactionCategory] = useState('');
 
