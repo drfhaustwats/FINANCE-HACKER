@@ -854,9 +854,41 @@ const Dashboard = () => {
                           {transaction.description}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                            {transaction.category}
-                          </span>
+                          {editingTransactionId === transaction.id ? (
+                            <div className="flex items-center space-x-2">
+                              <select
+                                value={tempTransactionCategory}
+                                onChange={(e) => setTempTransactionCategory(e.target.value)}
+                                className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              >
+                                {defaultCategories.map(category => (
+                                  <option key={category} value={category}>{category}</option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => handleSaveCategoryEdit(transaction.id)}
+                                className="text-green-600 hover:text-green-800 text-xs"
+                                title="Save"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                onClick={handleCancelCategoryEdit}
+                                className="text-red-600 hover:text-red-800 text-xs"
+                                title="Cancel"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <span 
+                              className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 cursor-pointer hover:bg-blue-200 transition-colors"
+                              onClick={() => handleEditCategory(transaction.id, transaction.category)}
+                              title="Click to edit category"
+                            >
+                              {transaction.category}
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                           {formatCurrency(transaction.amount)}
