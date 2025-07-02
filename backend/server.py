@@ -1002,6 +1002,165 @@ async def bulk_delete_transactions(
         "deleted_count": result.deleted_count
     }
 
+# Excel Export Endpoint
+@api_router.get("/transactions/export/excel")
+async def export_transactions_to_excel(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    category: Optional[str] = None,
+    pdf_source: Optional[str] = None,
+    account_type: Optional[str] = None,
+    user_id: str = Depends(get_current_user_id)
+):
+    """Export transactions to Excel file with filters"""
+    # Use the same filtering logic as get_transactions
+    filter_dict = {"user_id": user_id}
+    
+    if start_date:
+        filter_dict["date"] = {"$gte": start_date}
+    if end_date:
+        if "date" in filter_dict:
+            filter_dict["date"]["$lte"] = end_date
+        else:
+            filter_dict["date"] = {"$lte": end_date}
+    if category:
+        filter_dict["category"] = category
+    if pdf_source:
+        filter_dict["pdf_source"] = pdf_source
+    if account_type:
+        filter_dict["account_type"] = account_type
+    
+    # Get transactions sorted by date (newest first)
+    transactions = await db.transactions.find(filter_dict).sort("date", -1).to_list(10000)
+    
+    if not transactions:
+        raise HTTPException(status_code=404, detail="No transactions found for export")
+    
+    # Create Excel workbook
+    wb = Workbook()
+    
+    # Main transactions sheet
+    ws_main = wb.active
+    ws_main.title = "Transactions"
+    
+    # Convert transactions to DataFrame for easier manipulation
+    df_data = []
+    for transaction in transactions:
+        df_data.append({
+            'Date': transaction.get('date', ''),
+            'Description': transaction.get('description', ''),
+            'Category': transaction.get('category', ''),
+            'Amount': transaction.get('amount', 0),
+            'Account Type': 'Credit Card' if transaction.get('account_type') == 'credit_card' else 'Debit Account',
+            'Source': transaction.get('pdf_source', 'Manual'),
+            'User': transaction.get('user_name', '')
+        })
+    
+    df = pd.DataFrame(df_data)
+    
+    # Add headers with styling
+    headers = ['Date', 'Description', 'Category', 'Amount', 'Account Type', 'Source', 'User']
+    for col_num, header in enumerate(headers, 1):
+        cell = ws_main.cell(row=1, column=col_num, value=header)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        cell.alignment = Alignment(horizontal="center")
+    
+    # Add data rows
+    for row_num, (_, row_data) in enumerate(df.iterrows(), 2):
+        for col_num, value in enumerate(row_data, 1):
+            cell = ws_main.cell(row=row_num, column=col_num, value=value)
+            if col_num == 4:  # Amount column
+                cell.number_format = '"$"#,##0.00'
+    
+    # Auto-adjust column widths
+    for column in ws_main.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = min(max_length + 2, 50)
+        ws_main.column_dimensions[column_letter].width = adjusted_width
+    
+    # Create summary sheet
+    ws_summary = wb.create_sheet("Summary")
+    
+    # Summary statistics
+    total_amount = df['Amount'].sum()
+    transaction_count = len(df)
+    date_range = f"{df['Date'].min()} to {df['Date'].max()}" if not df.empty else "No data"
+    
+    # Category breakdown
+    category_summary = df.groupby('Category')['Amount'].agg(['count', 'sum']).reset_index()
+    
+    # Account type breakdown
+    account_summary = df.groupby('Account Type')['Amount'].agg(['count', 'sum']).reset_index()
+    
+    # Add summary data
+    summary_data = [
+        ["Export Summary", ""],
+        ["Total Transactions", transaction_count],
+        ["Total Amount", f"${total_amount:,.2f}"],
+        ["Date Range", date_range],
+        ["Export Date", datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
+        ["", ""],
+        ["Category Breakdown", ""],
+        ["Category", "Count", "Total Amount"]
+    ]
+    
+    # Add category data
+    for _, row in category_summary.iterrows():
+        summary_data.append([row['Category'], row['count'], f"${row['sum']:,.2f}"])
+    
+    summary_data.extend([
+        ["", ""],
+        ["Account Type Breakdown", ""],
+        ["Account Type", "Count", "Total Amount"]
+    ])
+    
+    # Add account type data
+    for _, row in account_summary.iterrows():
+        summary_data.append([row['Account Type'], row['count'], f"${row['sum']:,.2f}"])
+    
+    # Write summary data
+    for row_num, row_data in enumerate(summary_data, 1):
+        for col_num, value in enumerate(row_data, 1):
+            cell = ws_summary.cell(row=row_num, column=col_num, value=value)
+            if row_num == 1 or (len(row_data) > 2 and value in ["Category Breakdown", "Account Type Breakdown"]):
+                cell.font = Font(bold=True)
+    
+    # Auto-adjust summary column widths
+    for column in ws_summary.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        adjusted_width = min(max_length + 2, 30)
+        ws_summary.column_dimensions[column_letter].width = adjusted_width
+    
+    # Save to BytesIO
+    excel_buffer = io.BytesIO()
+    wb.save(excel_buffer)
+    excel_buffer.seek(0)
+    
+    # Generate filename
+    filename = f"lifetracker_transactions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    
+    # Return as streaming response
+    return StreamingResponse(
+        io.BytesIO(excel_buffer.getvalue()),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
 # PDF Processing Endpoint
 @api_router.post("/transactions/pdf-import")
 async def import_transactions_from_pdf(
