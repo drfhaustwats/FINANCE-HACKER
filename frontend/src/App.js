@@ -85,7 +85,7 @@ const Dashboard = () => {
 
       const [transactionsRes, monthlyRes, categoryRes, categoriesRes, sourcesRes] = await Promise.all([
         axios.get(`${API}/transactions?${transactionParams.toString()}`),
-        axios.get(`${API}/analytics/monthly-report`),
+        axios.get(`${API}/analytics/monthly-report?year=${new Date().getFullYear()}`),
         axios.get(`${API}/analytics/category-breakdown`),
         axios.get(`${API}/categories`),
         axios.get(`${API}/transactions/sources`)
