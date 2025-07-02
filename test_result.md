@@ -340,10 +340,13 @@ backend:
         comment: "Confirmed that the monthly report endpoint (/api/analytics/monthly-report) is working correctly but requires a year parameter to return data. When testing with ?year=2024, the endpoint returns data for all three months (2024-09, 2024-10, 2024-11) with correct category breakdowns and spending totals. The issue is in the frontend code at line 88 in App.js, where the API call is made without the year parameter: axios.get(`${API}/analytics/monthly-report`). This needs to be updated to include the current year: axios.get(`${API}/analytics/monthly-report?year=${new Date().getFullYear()}`)."
       - working: false
         agent: "testing"
-        comment: "Retested the monthly report API endpoint and found that it's working correctly from a backend perspective. The API requires a year parameter to return data. When tested with the current year parameter (?year=2024), the endpoint returns an empty array, which is unexpected given that there are transactions in the database for 2024. This suggests there might be an issue with how the monthly data is being aggregated in the backend. The issue could be in the get_monthly_report function in server.py, specifically in how it groups transactions by month or how it filters by year."
+        comment: "Retested the monthly report API endpoint and found that it's working correctly from a backend perspective. The API requires a year parameter but returns an empty array even when provided with the correct year (2024), despite there being transactions for 2024 in the database. This suggests there might be an issue with how the monthly data is being aggregated in the backend. The issue could be in the get_monthly_report function in server.py, specifically in how it groups transactions by month or how it filters by year."
       - working: false
         agent: "testing"
         comment: "Further investigation revealed that the monthly report API is actually working correctly. When tested with ?year=2024, it returns data for all three months (2024-09, 2024-10, 2024-11) with correct category breakdowns and spending totals. The issue is definitely in the frontend code, which is not passing the year parameter to the API. The frontend needs to be updated to include the current year in the API call: axios.get(`${API}/analytics/monthly-report?year=${new Date().getFullYear()}`)."
+      - working: false
+        agent: "testing"
+        comment: "Verified that the frontend code is actually correctly passing the year parameter to the monthly report API at line 88 in App.js: axios.get(`${API}/analytics/monthly-report?year=${new Date().getFullYear()}`). The issue might be related to how the frontend is handling the response data. The monthly report API returns data in the expected format, but the frontend might not be correctly displaying it. The console.log at line 94 should help debug this issue."
 
   - task: "Date extraction accuracy"
     implemented: true
