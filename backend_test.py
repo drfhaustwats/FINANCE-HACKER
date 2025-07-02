@@ -543,7 +543,7 @@ def test_pdf_import_error_handling():
 # Test 19: PDF transaction extraction completeness
 def test_pdf_extraction_completeness():
     try:
-        # Create a test PDF file with the Lovisa transaction
+        # Create a test PDF file with the Lovisa transaction and other transactions
         pdf_path = '/tmp/test_lovisa_transaction.pdf'
         create_test_pdf(pdf_path)
         
@@ -554,12 +554,27 @@ def test_pdf_extraction_completeness():
         
         success = response.status_code == 200 and "message" in response.json()
         
-        # Check if the Lovisa transaction was extracted
+        # Check if all transactions were extracted, including the Lovisa transaction
         if success:
+            # Verify the response data
+            imported_count = response.json().get("imported_count", 0)
+            total_found = response.json().get("total_found", 0)
+            
+            print(f"PDF Import Response: {response.json()}")
+            print(f"Total transactions found in PDF: {total_found}")
+            print(f"Transactions imported (excluding duplicates): {imported_count}")
+            
+            # We expect to find all 6 transactions from our test PDF
+            if total_found < 6:
+                print(f"WARNING: Expected at least 6 transactions, but only found {total_found}")
+                success = False
+            
             # Get all transactions
             transactions_response = requests.get(f"{API_URL}/transactions")
             if transactions_response.status_code == 200:
                 transactions = transactions_response.json()
+                
+                # Check specifically for the Lovisa transaction
                 lovisa_found = False
                 for transaction in transactions:
                     if "lovisa" in transaction.get("description", "").lower():
