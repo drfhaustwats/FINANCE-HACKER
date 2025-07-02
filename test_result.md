@@ -344,11 +344,11 @@ backend:
 
   - task: "Date extraction accuracy"
     implemented: true
-    working: false
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 3
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "testing"
@@ -362,6 +362,9 @@ backend:
       - working: true
         agent: "main"
         comment: "Fixed timezone issue in frontend formatDate function. Changed from new Date(dateString) to manual parsing to avoid UTC conversion."
+      - working: true
+        agent: "testing"
+        comment: "Verified that dates are being stored correctly in the database. Examined multiple transactions including the DOLLARAMA #594 transaction which is correctly stored as 2024-11-14. The date format in the database is ISO format (YYYY-MM-DD) which is appropriate for storage. The frontend timezone fix appears to have resolved the display issue as reported by the user."
 
   - task: "PDF transaction extraction completeness"
     implemented: true
