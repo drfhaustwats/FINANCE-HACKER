@@ -397,9 +397,22 @@ def parse_date_string(date_str: str, statement_year: int) -> date:
             month_name, day = parts
             month = month_map.get(month_name[:3], None)
             if month:
-                return date(statement_year, month, int(day))
-    except:
-        pass
+                # If no statement year provided, use current year or 2024 for reasonable defaults
+                year = statement_year if statement_year else 2024
+                
+                # Smart year logic: if we're in July 2025 and see Oct/Nov dates, they're likely from 2024
+                current_year = datetime.now().year
+                if not statement_year:
+                    if month in [10, 11, 12] and datetime.now().month < 6:  # Oct/Nov/Dec but we're early in year
+                        year = current_year - 1
+                    elif month in [1, 2, 3] and datetime.now().month > 6:  # Jan/Feb/Mar but we're late in year  
+                        year = current_year + 1
+                    else:
+                        year = current_year
+                
+                return date(year, month, int(day))
+    except Exception as e:
+        print(f"Date parsing error: {e}")
     return None
 
 def clean_category(category_str: str, description: str) -> str:
