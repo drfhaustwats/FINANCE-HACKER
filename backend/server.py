@@ -108,21 +108,45 @@ def extract_text_from_pdf(file_content: bytes) -> str:
     try:
         # Method 1: Using pdfplumber (better for tables and structured data)
         with pdfplumber.open(io.BytesIO(file_content)) as pdf:
-            for page in pdf.pages:
+            print(f"PDF has {len(pdf.pages)} pages")
+            for page_num, page in enumerate(pdf.pages):
+                print(f"Processing page {page_num + 1}")
                 page_text = page.extract_text()
                 if page_text:
-                    text += page_text + "\n"
+                    print(f"Page {page_num + 1} extracted {len(page_text)} characters")
+                    text += f"\n--- PAGE {page_num + 1} ---\n" + page_text + "\n"
+                else:
+                    print(f"Page {page_num + 1} - no text extracted")
+                    
+                # Also try to extract tables
+                tables = page.extract_tables()
+                if tables:
+                    print(f"Page {page_num + 1} has {len(tables)} tables")
+                    for table_num, table in enumerate(tables):
+                        text += f"\n--- TABLE {table_num + 1} ON PAGE {page_num + 1} ---\n"
+                        for row in table:
+                            if row and any(cell for cell in row if cell):  # Skip empty rows
+                                text += " | ".join(str(cell) if cell else "" for cell in row) + "\n"
+    
     except Exception as e:
         logging.warning(f"pdfplumber extraction failed: {e}")
         
         # Method 2: Fallback to PyPDF2
         try:
             pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_content))
-            for page in pdf_reader.pages:
-                text += page.extract_text() + "\n"
+            print(f"PyPDF2: PDF has {len(pdf_reader.pages)} pages")
+            for page_num, page in enumerate(pdf_reader.pages):
+                page_text = page.extract_text()
+                text += f"\n--- PYPDF2 PAGE {page_num + 1} ---\n" + page_text + "\n"
         except Exception as e2:
             logging.error(f"PyPDF2 extraction also failed: {e2}")
             raise HTTPException(status_code=400, detail="Could not extract text from PDF")
+    
+    print(f"Total extracted text length: {len(text)}")
+    print("EXTRACTED TEXT PREVIEW:")
+    print("=" * 80)
+    print(text[:2000])  # Print first 2000 characters for debugging
+    print("=" * 80)
     
     return text
 
