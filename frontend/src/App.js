@@ -279,6 +279,52 @@ const Dashboard = () => {
     }));
   };
 
+  const handleExportToExcel = async () => {
+    try {
+      // Build the same query parameters as fetchData
+      const params = new URLSearchParams();
+      if (filters.startDate) params.append('start_date', filters.startDate);
+      if (filters.endDate) params.append('end_date', filters.endDate);
+      if (filters.category) params.append('category', filters.category);
+      if (filters.pdfSource) params.append('pdf_source', filters.pdfSource);
+      if (filters.accountType) params.append('account_type', filters.accountType);
+
+      const response = await axios.get(`${API}/transactions/export/excel?${params.toString()}`, {
+        responseType: 'blob'
+      });
+
+      // Create blob and download
+      const blob = new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+      
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Extract filename from response headers or generate one
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'lifetracker_transactions.xlsx';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+      
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      alert('Excel file downloaded successfully!');
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      alert('Error exporting to Excel: ' + (error.response?.data?.detail || error.message));
+    }
+  };
+
   const handleFilterChange = (filterName, value) => {
     setFilters(prev => ({
       ...prev,
