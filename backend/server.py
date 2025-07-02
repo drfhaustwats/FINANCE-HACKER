@@ -125,21 +125,68 @@ def extract_text_from_pdf(file_content: bytes) -> str:
     
     return text
 
+def extract_pdf_metadata(text: str) -> dict:
+    """Extract user name and statement period from PDF header"""
+    metadata = {
+        'user_name': None,
+        'statement_start': None,
+        'statement_end': None,
+        'statement_year': None
+    }
+    
+    lines = text.split('\n')
+    
+    # Look for user name in first few lines
+    for i, line in enumerate(lines[:10]):
+        line = line.strip()
+        # Look for name patterns (all caps, likely a person's name)
+        if re.match(r'^[A-Z\s]{10,50}$', line) and ' ' in line and len(line.split()) >= 2:
+            # Skip common bank terms
+            if not any(term in line.upper() for term in ['ACCOUNT', 'STATEMENT', 'CARD', 'BANK', 'DIVIDEND']):
+                metadata['user_name'] = line.strip()
+                break
+    
+    # Look for statement period
+    for line in lines[:20]:
+        line = line.strip()
+        # Pattern: "October 16to November 15, 2024" or "October 16 to November 15, 2024"
+        period_match = re.search(r'(\w+)\s+(\d+)\s*to\s*(\w+)\s+(\d+),?\s*(\d{4})', line, re.IGNORECASE)
+        if period_match:
+            start_month, start_day, end_month, end_day, year = period_match.groups()
+            metadata['statement_start'] = f"{start_month} {start_day}"
+            metadata['statement_end'] = f"{end_month} {end_day}"
+            metadata['statement_year'] = int(year)
+            break
+        
+        # Alternative pattern: "November 15, 2024" for statement date
+        date_match = re.search(r'(\w+)\s+(\d+),?\s*(\d{4})', line)
+        if date_match and 'statement' in line.lower():
+            month, day, year = date_match.groups()
+            metadata['statement_end'] = f"{month} {day}"
+            metadata['statement_year'] = int(year)
+    
+    return metadata
+
 def parse_transactions_from_text(text: str, user_id: str, source_filename: str = None) -> List[dict]:
     """Parse transactions from extracted PDF text - enhanced for multiple bank formats"""
     transactions = []
     
-    # Enhanced patterns for different bank statement formats
-    # Format: trans_date, post_date, description, category, amount
+    # Extract metadata first
+    metadata = extract_pdf_metadata(text)
+    statement_year = metadata.get('statement_year', datetime.now().year)
+    user_name = metadata.get('user_name', 'Unknown User')
+    
+    print(f"Extracted metadata: User: {user_name}, Year: {statement_year}")
+    
+    # Enhanced patterns for CIBC format specifically
+    # The correct format should be: Trans Date, Post Date, Description, Category, Amount
     patterns = [
-        # CIBC Pattern - precise format: Date Date Description Category Amount
-        r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+([A-Z0-9\s\#\*\.\-\/\&]+?)\s+([A-Za-z\s,&]+?)\s+(\d+\.\d{2})(?:\s|$)',
-        # CIBC Alternative - with dollar sign clearly at end
-        r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+([A-Z0-9\s\#\*\.\-\/]+?)\s+([A-Za-z\s,&]+?)\s+\$(\d+\.\d{2})',
-        # Generic pattern with proper amount at end
-        r'(\d{1,2}/\d{1,2}/\d{4})\s+([^$]+?)\s+([A-Za-z\s,&]+?)\s+\$(\d+\.\d{2})(?:\s|$)',
-        # Tab or multiple space separated
-        r'(\d{4}-\d{2}-\d{2})\s+([^\t$]+?)\s+([A-Za-z\s,&]+?)\s+\$?(\d+\.\d{2})(?:\s|$)'
+        # Main CIBC pattern - Trans Date, Post Date, Description, Spend Category, Amount
+        r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+([A-Z0-9\s\#\*\.\-\/\&\(\)]+?)\s+([A-Za-z\s,&]+?)\s+(\d+\.\d{2})(?:\s|$)',
+        # Alternative pattern for transactions without clear category
+        r'(\w{3}\s+\d{1,2})\s+(\w{3}\s+\d{1,2})\s+([A-Z0-9\s\#\*\.\-\/\&\(\)]+?)\s+(\d+\.\d{2})(?:\s|$)',
+        # Catch remaining patterns
+        r'(\w{3}\s+\d{1,2})\s+([A-Z0-9\s\#\*\.\-\/\&\(\)]{10,})\s+(\d+\.\d{2})(?:\s|$)'
     ]
     
     # Category mapping based on description keywords
