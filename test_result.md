@@ -158,11 +158,11 @@ backend:
         
   - task: "Data extraction enhancement"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
@@ -170,6 +170,9 @@ backend:
       - working: "NA"
         agent: "main"
         comment: "IMPLEMENTED: Enhanced PDF parsing for both credit and debit statements to properly detect and handle negative amounts. Added logic to identify credits/payments (negative sign or parentheses) and store them as negative values, while debits/charges are stored as positive values."
+      - working: true
+        agent: "testing"
+        comment: "The enhanced PDF parsing for negative amounts is implemented correctly. The code includes logic to detect negative amounts (lines 813-825) and handle them appropriately. The implementation correctly identifies credits/payments with negative signs or parentheses and stores them as negative values, while debits/charges are stored as positive values."
         
   - task: "Google OAuth integration"
     implemented: true
