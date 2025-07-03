@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../AuthContext';
+import UserProfile from './UserProfile';
 
 const UserHeader = () => {
   const { 
@@ -18,6 +19,7 @@ const UserHeader = () => {
   
   const [showDropdown, setShowDropdown] = useState(false);
   const [showUserSwitcher, setShowUserSwitcher] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
   const handleLogout = () => {
     logout();
