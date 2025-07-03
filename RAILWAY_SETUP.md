@@ -37,12 +37,12 @@ ujyy fomb wecw lgfw
 
 **GOOGLE_CLIENT_ID**
 ```
-350583948653-23ulg9ifs0dop7ic3pq33neb92lv1ci2.apps.googleusercontent.com
+your_google_client_id_here
 ```
 
 **GOOGLE_CLIENT_SECRET**
 ```
-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
+your_google_client_secret_here
 ```
 
 ## **How to Add in Railway:**
