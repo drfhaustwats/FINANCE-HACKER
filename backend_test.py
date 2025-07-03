@@ -4,6 +4,8 @@ import json
 import uuid
 import random
 import sys
+import os
+import time
 from datetime import datetime
 
 # Get the backend URL from the frontend .env file
@@ -40,6 +42,50 @@ def print_test_result(test_name, success, response=None, error=None):
     
     print(f"{'=' * 80}\n")
     return success
+
+# Helper function to register a test user and get auth token
+def register_and_login_user(email=None, password=None, full_name=None):
+    if not email:
+        random_id = uuid.uuid4().hex[:8]
+        email = f"test_user_{random_id}@example.com"
+    if not password:
+        password = "Test@123456"
+    if not full_name:
+        full_name = f"Test User {random_id}"
+    
+    # Register user
+    register_data = {
+        "email": email,
+        "password": password,
+        "full_name": full_name
+    }
+    
+    try:
+        register_response = requests.post(f"{API_URL}/auth/register", json=register_data)
+        print(f"Register response: {register_response.status_code}")
+        
+        # Login to get token
+        login_data = {
+            "email": email,
+            "password": password
+        }
+        
+        login_response = requests.post(f"{API_URL}/auth/login", json=login_data)
+        if login_response.status_code == 200:
+            token_data = login_response.json()
+            return {
+                "email": email,
+                "password": password,
+                "full_name": full_name,
+                "token": token_data.get("access_token"),
+                "user_id": token_data.get("user_id")
+            }
+        else:
+            print(f"Login failed: {login_response.text}")
+            return None
+    except Exception as e:
+        print(f"Error in register_and_login_user: {str(e)}")
+        return None
 
 # Test 1: Test transactions data isolation
 def test_transactions_data_isolation():
