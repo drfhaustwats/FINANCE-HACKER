@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../AuthContext';
 
-const Login = ({ onSwitchToRegister }) => {
+const Login = ({ onSwitchToRegister, onSwitchToForgotPassword }) => {
   const [formData, setFormData] = useState({
     email: '',
     password: ''
