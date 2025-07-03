@@ -1,8 +1,9 @@
-from fastapi import FastAPI, APIRouter, UploadFile, File, Form, HTTPException, Depends, status
+from fastapi import FastAPI, APIRouter, UploadFile, File, Form, HTTPException, Depends, status, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
@@ -25,6 +26,13 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 import secrets
+import aiosmtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import random
+import string
+from authlib.integrations.starlette_client import OAuth
+import httpx
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
