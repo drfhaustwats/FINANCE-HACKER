@@ -111,8 +111,13 @@ def test_forgot_password():
 # Test 3: Test Google OAuth endpoints
 def test_google_oauth():
     try:
-        # Test Google login endpoint - should redirect to Google
+        # Try both with and without /api prefix
         login_response = requests.get(f"{API_URL}/auth/google/login", allow_redirects=False)
+        
+        if login_response.status_code != 302 and login_response.status_code != 307:
+            # Try with the /auth prefix directly
+            auth_url = BACKEND_URL + "/auth"
+            login_response = requests.get(f"{auth_url}/google/login", allow_redirects=False)
         
         # Check if it's a redirect (status code 302 or 307)
         login_redirect = login_response.status_code in [302, 307]
@@ -132,7 +137,11 @@ def test_google_oauth():
         
         # Test callback endpoint - we can't fully test this without a valid OAuth code
         # but we can check if the endpoint exists
-        callback_response = requests.get(f"{API_URL}/auth/google/callback?code=test_code&state=test_state")
+        # Use the same URL prefix that worked for the login endpoint
+        if login_response.url.startswith(auth_url):
+            callback_response = requests.get(f"{auth_url}/google/callback?code=test_code&state=test_state")
+        else:
+            callback_response = requests.get(f"{API_URL}/auth/google/callback?code=test_code&state=test_state")
         
         # The callback should either succeed or return an error about the invalid code
         # but it shouldn't return a 404
