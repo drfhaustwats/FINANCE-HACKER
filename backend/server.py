@@ -223,6 +223,37 @@ async def authenticate_user(email: str, password: str):
         return False
     return user
 
+# Email utility functions
+async def send_email(to_email: str, subject: str, body: str):
+    """Send email using Gmail SMTP"""
+    try:
+        message = MIMEMultipart("alternative")
+        message["Subject"] = subject
+        message["From"] = GMAIL_EMAIL
+        message["To"] = to_email
+        
+        # Create the HTML content
+        html_part = MIMEText(body, "html")
+        message.attach(html_part)
+        
+        # Send the email
+        await aiosmtplib.send(
+            message,
+            hostname="smtp.gmail.com",
+            port=587,
+            start_tls=True,
+            username=GMAIL_EMAIL,
+            password=GMAIL_APP_PASSWORD,
+        )
+        return True
+    except Exception as e:
+        logging.error(f"Failed to send email: {e}")
+        return False
+
+def generate_reset_code():
+    """Generate a 6-digit reset code"""
+    return ''.join(random.choices(string.digits, k=6))
+
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
