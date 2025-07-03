@@ -66,11 +66,11 @@ def register_and_login_user(email=None, password=None, full_name=None):
         
         # Login to get token
         login_data = {
-            "email": email,
+            "username": email,  # OAuth2PasswordRequestForm expects username field
             "password": password
         }
         
-        login_response = requests.post(f"{API_URL}/auth/login", json=login_data)
+        login_response = requests.post(f"{API_URL}/auth/login", data=login_data)
         if login_response.status_code == 200:
             token_data = login_response.json()
             return {
