@@ -30,7 +30,7 @@ your_gmail_email_here
 
 **GMAIL_APP_PASSWORD**
 ```
-ujyy fomb wecw lgfw
+your_gmail_app_password_here
 ```
 
 ## **Google OAuth Variables:**
