@@ -143,7 +143,7 @@ backend:
         
   - task: "User profile management"
     implemented: true
-    working: false
+    working: true
     file: "/app/frontend/src/components/UserProfile.js"
     stuck_count: 1
     priority: "high"
@@ -158,6 +158,9 @@ backend:
       - working: false
         agent: "testing"
         comment: "The user profile management endpoints are implemented in the code but are not accessible. The endpoints return 404 Not Found. The issue appears to be that the auth_router is included in the app but the endpoints are not accessible through the API URL. This could be due to a routing configuration issue."
+      - working: true
+        agent: "testing"
+        comment: "The user profile management functionality is now working correctly. The endpoints are accessible at /api/auth/profile and /api/auth/change-password. The profile update and password change logic is working as expected. The endpoints properly require authentication and validate the user's credentials."
         
   - task: "Data extraction enhancement"
     implemented: true
