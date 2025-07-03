@@ -2170,6 +2170,9 @@ async def get_current_user_id_legacy():
 app.include_router(api_router)
 app.include_router(auth_router, prefix="/api")
 
+# RAILWAY COMPATIBILITY: Also include auth router without /api prefix for direct access
+app.include_router(auth_router)
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
