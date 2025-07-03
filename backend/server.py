@@ -42,6 +42,14 @@ SECRET_KEY = os.environ.get("SECRET_KEY", secrets.token_urlsafe(32))
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30 * 24 * 60  # 30 days
 
+# Gmail SMTP Configuration
+GMAIL_EMAIL = os.environ.get("GMAIL_EMAIL")
+GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD")
+
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
+
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
@@ -53,6 +61,9 @@ db = client[os.environ['DB_NAME']]
 
 # Create the main app without a prefix
 app = FastAPI()
+
+# Add session middleware for OAuth
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
