@@ -192,6 +192,8 @@ const Register = ({ onSwitchToLogin }) => {
               </button>
             </span>
           </div>
+          
+          <GoogleSignIn />
         </form>
       </div>
     </div>
