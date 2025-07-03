@@ -791,9 +791,25 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                     continue
                 
                 try:
-                    # Parse amount
-                    amount = float(amount_str)
-                    if amount < 0.01 or amount > 50000:
+                    # Parse amount - Enhanced to handle negative amounts and credits
+                    amount_str_clean = amount_str.strip()
+                    
+                    # Check for negative sign (indicates credit/payment)
+                    is_credit = False
+                    if amount_str_clean.startswith('-') or amount_str_clean.startswith('('):
+                        is_credit = True
+                        amount_str_clean = amount_str_clean.replace('-', '').replace('(', '').replace(')', '').strip()
+                    
+                    amount = float(amount_str_clean)
+                    
+                    # Apply negative for credits (payments, refunds)
+                    if is_credit:
+                        amount = -amount
+                        print(f"💳 CREDIT/PAYMENT detected: ${abs(amount)} (stored as negative)")
+                    else:
+                        print(f"💰 DEBIT/CHARGE detected: ${amount} (stored as positive)")
+                    
+                    if abs(amount) < 0.01 or abs(amount) > 50000:
                         print(f"Skipping amount {amount} (out of range)")
                         continue
                     
