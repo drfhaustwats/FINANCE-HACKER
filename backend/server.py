@@ -1019,10 +1019,9 @@ async def delete_category(category_id: str, user_id: str = Depends(get_current_u
 
 # Transaction Management (Enhanced)
 @api_router.post("/transactions", response_model=Transaction)
-async def create_transaction(transaction: TransactionCreate):
+async def create_transaction(transaction: TransactionCreate, user_id: str = Depends(get_current_user_id)):
     transaction_dict = transaction.dict()
-    if not transaction_dict.get('user_id'):
-        transaction_dict['user_id'] = await get_current_user_id()
+    transaction_dict['user_id'] = user_id
     
     transaction_obj = Transaction(**transaction_dict)
     
