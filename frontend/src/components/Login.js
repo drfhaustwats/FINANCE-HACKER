@@ -120,6 +120,16 @@ const Login = ({ onSwitchToRegister }) => {
               </button>
             </span>
           </div>
+
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={onSwitchToForgotPassword}
+              className="text-sm text-blue-600 hover:text-blue-500"
+            >
+              Forgot your password?
+            </button>
+          </div>
         </form>
       </div>
     </div>
