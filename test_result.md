@@ -516,16 +516,18 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Date extraction accuracy"
-    - "Inline category editing functionality"
-  stuck_tasks:
-    - "Inline category editing functionality"
+    - "User data segmentation verification"
+    - "Forgot password functionality"
+    - "User profile management"
+    - "Data extraction enhancement"
+    - "Google OAuth integration"
+  stuck_tasks: []
   test_all: false
-  test_priority: "stuck_first"
+  test_priority: "critical_first"
 
 agent_communication:
-  - agent: "testing"
-    message: "Initializing test_result.md with the structure for backend API testing. Will create and run backend_test.py to test all API endpoints."
+  - agent: "main"
+    message: "Starting comprehensive security and feature enhancement. User reported critical issue with data segmentation - users can see other users' data. Need to verify this issue and implement missing features: forgot password, user profile page, negative amount parsing, and Google OAuth."
   - agent: "testing"
     message: "Completed testing of all backend API endpoints. All high priority endpoints are working correctly. The bulk import functionality (medium priority) has an issue with date handling that needs to be fixed. The issue is that when pandas reads the CSV file, it converts date strings to datetime.date objects, but these aren't properly converted to strings before being inserted into MongoDB."
   - agent: "testing"
