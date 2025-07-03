@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Test the LifeTracker backend API thoroughly"
+user_problem_statement: "Implement critical security fixes and enhancements: 1) Fix user data segmentation if broken 2) Add forgot password functionality 3) Add user profile page 4) Enhance data extraction for negative amounts 5) Add Google OAuth signup"
 
 backend:
   - task: "Root API endpoint"
