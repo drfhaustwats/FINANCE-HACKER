@@ -174,6 +174,24 @@ class Household(BaseModel):
     members: List[str]
     created_at: datetime
 
+# Password Reset Models
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+class PasswordResetConfirm(BaseModel):
+    email: EmailStr
+    reset_code: str
+    new_password: str
+
+# User Profile Models
+class UserProfileUpdate(BaseModel):
+    full_name: Optional[str] = None
+    username: Optional[str] = None
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
 # Authentication utility functions
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
