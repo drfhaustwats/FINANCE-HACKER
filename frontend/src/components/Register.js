@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../AuthContext';
+import GoogleSignIn from './GoogleSignIn';
 
 const Register = ({ onSwitchToLogin }) => {
   const [formData, setFormData] = useState({
