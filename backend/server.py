@@ -1903,6 +1903,231 @@ async def invite_household_member(
         
         return {"message": "Invitation sent", "invitation_id": invitation_doc["id"]}
 
+# Password Reset Endpoints
+@auth_router.post("/forgot-password")
+async def forgot_password(request: PasswordResetRequest):
+    user = await get_user_by_email(request.email)
+    if not user:
+        # Don't reveal if email exists for security
+        return {"message": "If the email exists, a reset code has been sent"}
+    
+    # Generate reset code
+    reset_code = generate_reset_code()
+    
+    # Store reset code in database with expiration
+    reset_doc = {
+        "email": request.email,
+        "reset_code": reset_code,
+        "created_at": datetime.utcnow(),
+        "expires_at": datetime.utcnow() + timedelta(minutes=15)  # 15 minute expiry
+    }
+    
+    # Remove any existing reset codes for this email
+    await db.password_resets.delete_many({"email": request.email})
+    await db.password_resets.insert_one(reset_doc)
+    
+    # Send email
+    subject = "LifeTracker - Password Reset Code"
+    body = f"""
+    <html>
+    <body>
+        <h2>Password Reset Request</h2>
+        <p>You requested a password reset for your LifeTracker account.</p>
+        <p>Your reset code is: <strong style="font-size: 18px; color: #3B82F6;">{reset_code}</strong></p>
+        <p>This code will expire in 15 minutes.</p>
+        <p>If you didn't request this reset, please ignore this email.</p>
+        <br>
+        <p>Best regards,<br>LifeTracker Team</p>
+    </body>
+    </html>
+    """
+    
+    await send_email(request.email, subject, body)
+    return {"message": "If the email exists, a reset code has been sent"}
+
+@auth_router.post("/reset-password")
+async def reset_password(request: PasswordResetConfirm):
+    # Find valid reset code
+    reset_record = await db.password_resets.find_one({
+        "email": request.email,
+        "reset_code": request.reset_code,
+        "expires_at": {"$gt": datetime.utcnow()}
+    })
+    
+    if not reset_record:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset code"
+        )
+    
+    # Update user password
+    hashed_password = get_password_hash(request.new_password)
+    await db.users.update_one(
+        {"email": request.email},
+        {"$set": {"password_hash": hashed_password}}
+    )
+    
+    # Remove used reset code
+    await db.password_resets.delete_many({"email": request.email})
+    
+    return {"message": "Password successfully reset"}
+
+# User Profile Management Endpoints
+@auth_router.put("/profile", response_model=User)
+async def update_user_profile(
+    profile_update: UserProfileUpdate, 
+    current_user: dict = Depends(get_current_user)
+):
+    update_data = {}
+    
+    if profile_update.full_name is not None:
+        update_data["full_name"] = profile_update.full_name
+    
+    if profile_update.username is not None:
+        # Check if username is taken by another user
+        existing_user = await db.users.find_one({
+            "username": profile_update.username,
+            "id": {"$ne": current_user["id"]}
+        })
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already taken"
+            )
+        update_data["username"] = profile_update.username
+    
+    if update_data:
+        await db.users.update_one(
+            {"id": current_user["id"]},
+            {"$set": update_data}
+        )
+        
+        # Get updated user
+        updated_user = await db.users.find_one({"id": current_user["id"]})
+        return User(**{k: v for k, v in updated_user.items() if k != "password_hash"})
+    
+    return User(**{k: v for k, v in current_user.items() if k != "password_hash"})
+
+@auth_router.post("/change-password")
+async def change_password(
+    password_request: PasswordChangeRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    # Verify current password
+    if not verify_password(password_request.current_password, current_user["password_hash"]):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect"
+        )
+    
+    # Update password
+    hashed_password = get_password_hash(password_request.new_password)
+    await db.users.update_one(
+        {"id": current_user["id"]},
+        {"$set": {"password_hash": hashed_password}}
+    )
+    
+    return {"message": "Password successfully changed"}
+
+# Google OAuth Endpoints
+@auth_router.get("/google/login")
+async def google_login(request: Request):
+    # Create OAuth config
+    oauth = OAuth()
+    google = oauth.register(
+        name='google',
+        client_id=GOOGLE_CLIENT_ID,
+        client_secret=GOOGLE_CLIENT_SECRET,
+        server_metadata_url='https://accounts.google.com/.well-known/openid_configuration',
+        client_kwargs={
+            'scope': 'openid email profile'
+        }
+    )
+    
+    # Build redirect URI
+    redirect_uri = f"{str(request.base_url).rstrip('/')}/auth/google/callback"
+    return await google.authorize_redirect(request, redirect_uri)
+
+@auth_router.get("/google/callback")
+async def google_callback(request: Request):
+    try:
+        # Create OAuth config
+        oauth = OAuth()
+        google = oauth.register(
+            name='google',
+            client_id=GOOGLE_CLIENT_ID,
+            client_secret=GOOGLE_CLIENT_SECRET,
+            server_metadata_url='https://accounts.google.com/.well-known/openid_configuration',
+            client_kwargs={
+                'scope': 'openid email profile'
+            }
+        )
+        
+        # Get token and user info
+        token = await google.authorize_access_token(request)
+        user_info = token.get('userinfo')
+        
+        if not user_info or not user_info.get('email'):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to get user information from Google"
+            )
+        
+        email = user_info['email']
+        full_name = user_info.get('name', '')
+        username = email.split('@')[0]
+        
+        # Check if user exists
+        existing_user = await get_user_by_email(email)
+        
+        if existing_user:
+            # Update last login
+            await db.users.update_one(
+                {"id": existing_user["id"]},
+                {"$set": {"last_login": datetime.utcnow()}}
+            )
+            user_data = existing_user
+        else:
+            # Create new user
+            # Check if username is taken
+            existing_username = await db.users.find_one({"username": username})
+            if existing_username:
+                username = f"{username}_{str(uuid.uuid4())[:8]}"
+            
+            user_doc = {
+                "id": str(uuid.uuid4()),
+                "email": email,
+                "username": username,
+                "full_name": full_name,
+                "password_hash": get_password_hash(str(uuid.uuid4())),  # Random password for OAuth users
+                "role": "user",
+                "household_id": None,
+                "created_at": datetime.utcnow(),
+                "last_login": datetime.utcnow()
+            }
+            
+            await db.users.insert_one(user_doc)
+            user_data = user_doc
+        
+        # Create JWT token
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user_data["email"]}, expires_delta=access_token_expires
+        )
+        
+        # Return token and redirect to frontend with token in query params
+        frontend_url = os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:3000').replace('/api', '').replace(':8001', ':3000')
+        redirect_url = f"{frontend_url}?token={access_token}"
+        
+        return {"redirect_url": redirect_url, "access_token": access_token, "token_type": "bearer"}
+        
+    except Exception as e:
+        logging.error(f"Google OAuth callback error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OAuth authentication failed"
+        )
+
 # Legacy endpoint for backward compatibility (will be removed later)
 async def get_current_user_id_legacy():
     """Legacy function for backward compatibility during migration"""
