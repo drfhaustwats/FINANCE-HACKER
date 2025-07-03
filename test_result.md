@@ -182,7 +182,7 @@ backend:
         
   - task: "Google OAuth integration"
     implemented: true
-    working: false
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 1
     priority: "medium"
@@ -197,6 +197,9 @@ backend:
       - working: false
         agent: "testing"
         comment: "The Google OAuth endpoints are implemented in the code but are not accessible. The endpoints return 404 Not Found. The issue appears to be that the auth_router is included in the app but the endpoints are not accessible through the API URL. This could be due to a routing configuration issue."
+      - working: true
+        agent: "testing"
+        comment: "The Google OAuth integration is now working correctly. The endpoints are accessible at /api/auth/google/login and /api/auth/google/callback. The OAuth flow is properly configured with the provided Google credentials. The login endpoint redirects to Google for authentication, and the callback endpoint processes the OAuth response and creates/updates the user account."
 
   - task: "Root API endpoint"
     implemented: true
