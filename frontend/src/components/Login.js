@@ -131,6 +131,8 @@ const Login = ({ onSwitchToRegister, onSwitchToForgotPassword }) => {
               Forgot your password?
             </button>
           </div>
+          
+          <GoogleSignIn />
         </form>
       </div>
     </div>
