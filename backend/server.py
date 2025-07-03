@@ -35,7 +35,9 @@ from authlib.integrations.starlette_client import OAuth
 import httpx
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+# Load environment variables - prefer .env.local for development
+load_dotenv(ROOT_DIR / '.env.local')  # Load local secrets first
+load_dotenv(ROOT_DIR / '.env')        # Load template as fallback
 
 # Security configuration
 SECRET_KEY = os.environ.get("SECRET_KEY", secrets.token_urlsafe(32))
