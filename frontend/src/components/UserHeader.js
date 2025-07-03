@@ -226,6 +226,11 @@ const UserHeader = () => {
           </div>
         </div>
       </div>
+      
+      {/* Profile Modal */}
+      {showProfile && (
+        <UserProfile onClose={() => setShowProfile(false)} />
+      )}
     </div>
   );
 };
