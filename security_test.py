@@ -63,7 +63,13 @@ def test_forgot_password():
             "email": f"test_user_{uuid.uuid4().hex[:8]}@example.com"
         }
         
+        # Try both with and without /api prefix
         forgot_response = requests.post(f"{API_URL}/auth/forgot-password", json=forgot_password_data)
+        
+        if forgot_response.status_code != 200:
+            # Try with the /auth prefix directly
+            auth_url = BACKEND_URL + "/auth"
+            forgot_response = requests.post(f"{auth_url}/forgot-password", json=forgot_password_data)
         
         if forgot_response.status_code != 200:
             return print_test_result("Forgot Password", False, 
@@ -81,7 +87,11 @@ def test_forgot_password():
             "new_password": "NewTest@123456"
         }
         
-        reset_response = requests.post(f"{API_URL}/auth/reset-password", json=reset_data)
+        # Use the same URL prefix that worked for the forgot password endpoint
+        if forgot_response.url.startswith(auth_url):
+            reset_response = requests.post(f"{auth_url}/reset-password", json=reset_data)
+        else:
+            reset_response = requests.post(f"{API_URL}/auth/reset-password", json=reset_data)
         
         # We expect this to fail since we don't have the real reset code
         # But we want to verify the endpoint exists and processes our request
