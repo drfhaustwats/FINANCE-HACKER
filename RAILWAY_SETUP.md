@@ -25,7 +25,7 @@ your-super-secure-random-string-here
 
 **GMAIL_EMAIL**
 ```
-AKOLAIFA4@GMAIL.COM
+your_gmail_email_here
 ```
 
 **GMAIL_APP_PASSWORD**
