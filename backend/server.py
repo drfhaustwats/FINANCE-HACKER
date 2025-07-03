@@ -902,10 +902,6 @@ def remove_duplicates(transactions: List[dict]) -> List[dict]:
     print(f"Total parsed: {len(transactions)}, Unique: {len(unique_transactions)}")
     return unique_transactions
 
-# Helper function to get user (for now, use default user)
-async def get_current_user_id() -> str:
-    return "default_user"
-
 # Initialize default categories
 DEFAULT_CATEGORIES = [
     "Retail and Grocery",
