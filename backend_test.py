@@ -599,11 +599,11 @@ def test_user_profile_management():
         
         # Try logging in with the new password
         login_data = {
-            "email": user['email'],
+            "username": user['email'],
             "password": f"New{user['password']}"
         }
         
-        login_response = requests.post(f"{API_URL}/auth/login", json=login_data)
+        login_response = requests.post(f"{API_URL}/auth/login", data=login_data)
         
         login_success = login_response.status_code == 200
         
