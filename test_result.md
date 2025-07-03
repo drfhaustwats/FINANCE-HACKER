@@ -122,7 +122,7 @@ backend:
         
   - task: "Forgot password functionality"
     implemented: true
-    working: false
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 1
     priority: "high"
@@ -137,6 +137,9 @@ backend:
       - working: false
         agent: "testing"
         comment: "The forgot password endpoints are implemented in the code but are not accessible. The endpoints return 404 Not Found. The issue appears to be that the auth_router is included in the app but the endpoints are not accessible through the API URL. This could be due to a routing configuration issue."
+      - working: true
+        agent: "testing"
+        comment: "The forgot password functionality is now working correctly. The endpoints are accessible at /api/auth/forgot-password and /api/auth/reset-password. The email sending functionality is properly configured with Gmail SMTP. The reset code generation and validation logic is working as expected."
         
   - task: "User profile management"
     implemented: true
