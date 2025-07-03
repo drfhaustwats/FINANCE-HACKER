@@ -105,6 +105,66 @@
 user_problem_statement: "Implement critical security fixes and enhancements: 1) Fix user data segmentation if broken 2) Add forgot password functionality 3) Add user profile page 4) Enhance data extraction for negative amounts 5) Add Google OAuth signup"
 
 backend:
+  - task: "User data segmentation verification"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Need to verify if user data is properly isolated - user reported seeing other users' data"
+        
+  - task: "Forgot password functionality"
+    implemented: false
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Need to implement forgot password with email functionality using Gmail SMTP"
+        
+  - task: "User profile management"
+    implemented: false
+    working: "NA"
+    file: "/app/frontend/src/components/UserProfile.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Need to implement user profile page for account management"
+        
+  - task: "Data extraction enhancement"
+    implemented: false
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Need to enhance PDF parsing to handle negative amounts correctly (- = credit, none = debit)"
+        
+  - task: "Google OAuth integration"
+    implemented: false
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Need to implement Google OAuth for easier signup/login"
+
   - task: "Root API endpoint"
     implemented: true
     working: true
