@@ -724,11 +724,11 @@ def test_enhanced_pdf_parsing():
 # Run all tests
 def run_all_tests():
     print("\n" + "=" * 40)
-    print("STARTING USER DATA SEGMENTATION TESTS")
+    print("STARTING SECURITY AND FEATURE TESTS")
     print("=" * 40 + "\n")
     
-    # User data segmentation tests
-    test_results = {
+    # Security tests
+    security_test_results = {
         "Transactions Data Isolation": test_transactions_data_isolation(),
         "Categories Data Isolation": test_categories_data_isolation(),
         "Monthly Report Data Isolation": test_monthly_report_data_isolation(),
@@ -736,18 +736,44 @@ def run_all_tests():
         "Authentication Requirement": test_authentication_requirement()
     }
     
+    # New feature tests
+    feature_test_results = {
+        "Forgot Password": test_forgot_password(),
+        "User Profile Management": test_user_profile_management(),
+        "Google OAuth": test_google_oauth(),
+        "Enhanced PDF Parsing": test_enhanced_pdf_parsing()
+    }
+    
     print("\n" + "=" * 40)
-    print("TEST SUMMARY")
+    print("SECURITY TESTS SUMMARY")
     print("=" * 40)
     
-    all_passed = True
-    for test_name, result in test_results.items():
+    security_passed = True
+    for test_name, result in security_test_results.items():
         status = "PASSED" if result else "FAILED"
         if not result:
-            all_passed = False
+            security_passed = False
         print(f"{test_name}: {status}")
     
-    print("\nOVERALL RESULT: " + ("PASSED" if all_passed else "FAILED"))
+    print("\nOVERALL SECURITY RESULT: " + ("PASSED" if security_passed else "FAILED"))
+    
+    print("\n" + "=" * 40)
+    print("FEATURE TESTS SUMMARY")
+    print("=" * 40)
+    
+    features_passed = True
+    for test_name, result in feature_test_results.items():
+        status = "PASSED" if result else "FAILED"
+        if not result:
+            features_passed = False
+        print(f"{test_name}: {status}")
+    
+    print("\nOVERALL FEATURE RESULT: " + ("PASSED" if features_passed else "FAILED"))
+    
+    all_passed = security_passed and features_passed
+    
+    print("\n" + "=" * 40)
+    print("FINAL RESULT: " + ("PASSED" if all_passed else "FAILED"))
     print("=" * 40 + "\n")
     
     return all_passed
