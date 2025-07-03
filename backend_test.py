@@ -287,6 +287,12 @@ def test_delete_transaction():
 # Test 8: Create user
 def test_create_user():
     try:
+        # Use the original test_user for backward compatibility
+        test_user = {
+            "name": "John Doe",
+            "email": "john.doe@example.com",
+            "household_name": "Doe Family"
+        }
         response = requests.post(f"{API_URL}/users", json=test_user)
         success = response.status_code == 200 and "id" in response.json()
         
