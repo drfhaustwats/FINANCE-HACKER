@@ -565,8 +565,23 @@ def parse_cibc_debit_transactions(text: str, user_id: str, source_filename: str,
                 continue
                 
             # The transaction amount is typically the first amount found
-            # If there are 2 amounts, it's usually withdrawal, deposit
-            transaction_amount = float(amounts[0])
+            # Enhanced to handle negative amounts and credits
+            amount_str = amounts[0].strip()
+            
+            # Check for negative sign (indicates credit/deposit)
+            is_credit = False
+            if amount_str.startswith('-') or amount_str.startswith('('):
+                is_credit = True
+                amount_str = amount_str.replace('-', '').replace('(', '').replace(')', '').strip()
+            
+            transaction_amount = float(amount_str)
+            
+            # For debit accounts: negative usually means deposit/credit, positive means withdrawal/debit
+            if is_credit:
+                transaction_amount = -transaction_amount
+                print(f"💳 DEBIT CREDIT/DEPOSIT detected: ${abs(transaction_amount)} (stored as negative)")
+            else:
+                print(f"💰 DEBIT WITHDRAWAL detected: ${transaction_amount} (stored as positive)")
             
             # Extract description (everything between date and amounts)
             desc_end_pos = line_without_balance.rfind(amounts[0])
