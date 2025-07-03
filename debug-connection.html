@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LifeTracker Connection Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .test { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+        .loading { background-color: #fff3cd; border-color: #ffeaa7; color: #856404; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        input { padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 3px; width: 300px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🧪 LifeTracker Connection Debugger</h1>
+    
+    <div class="test">
+        <h3>🔧 Configuration</h3>
+        <label>Backend URL:</label>
+        <input type="text" id="backendUrl" placeholder="https://your-app.railway.app" style="width: 400px;">
+        <button onclick="saveConfig()">Save</button>
+        <div id="configStatus"></div>
+    </div>
+
+    <div class="test">
+        <h3>🏥 Test 1: Backend Health Check</h3>
+        <button onclick="testHealth()">Test Health</button>
+        <div id="healthResult"></div>
+    </div>
+
+    <div class="test">
+        <h3>📋 Test 2: API Categories</h3>
+        <button onclick="testCategories()">Test Categories API</button>
+        <div id="categoriesResult"></div>
+    </div>
+
+    <div class="test">
+        <h3>🔐 Test 3: Registration</h3>
+        <input type="email" id="testEmail" placeholder="test@example.com">
+        <input type="password" id="testPassword" placeholder="password123">
+        <input type="text" id="testName" placeholder="Test User">
+        <button onclick="testRegistration()">Test Registration</button>
+        <div id="registrationResult"></div>
+    </div>
+
+    <div class="test">
+        <h3>🌐 Test 4: CORS Check</h3>
+        <button onclick="testCORS()">Test CORS</button>
+        <div id="corsResult"></div>
+    </div>
+
+    <script>
+        let backendUrl = '';
+
+        function saveConfig() {
+            backendUrl = document.getElementById('backendUrl').value.trim();
+            if (backendUrl.endsWith('/')) {
+                backendUrl = backendUrl.slice(0, -1);
+            }
+            
+            localStorage.setItem('lifetracker_backend_url', backendUrl);
+            document.getElementById('configStatus').innerHTML = 
+                `<div class="success">✅ Backend URL saved: ${backendUrl}</div>`;
+        }
+
+        function loadConfig() {
+            const saved = localStorage.getItem('lifetracker_backend_url');
+            if (saved) {
+                backendUrl = saved;
+                document.getElementById('backendUrl').value = saved;
+                document.getElementById('configStatus').innerHTML = 
+                    `<div class="success">✅ Loaded saved URL: ${backendUrl}</div>`;
+            }
+        }
+
+        async function testHealth() {
+            if (!backendUrl) {
+                document.getElementById('healthResult').innerHTML = 
+                    '<div class="error">❌ Please set backend URL first</div>';
+                return;
+            }
+
+            document.getElementById('healthResult').innerHTML = 
+                '<div class="loading">⏳ Testing health...</div>';
+
+            try {
+                const response = await fetch(`${backendUrl}/docs`);
+                if (response.ok) {
+                    document.getElementById('healthResult').innerHTML = 
+                        `<div class="success">✅ Backend is alive! Status: ${response.status}</div>`;
+                } else {
+                    document.getElementById('healthResult').innerHTML = 
+                        `<div class="error">❌ Backend returned status: ${response.status}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('healthResult').innerHTML = 
+                    `<div class="error">❌ Connection failed: ${error.message}</div>`;
+            }
+        }
+
+        async function testCategories() {
+            if (!backendUrl) {
+                document.getElementById('categoriesResult').innerHTML = 
+                    '<div class="error">❌ Please set backend URL first</div>';
+                return;
+            }
+
+            document.getElementById('categoriesResult').innerHTML = 
+                '<div class="loading">⏳ Testing categories API...</div>';
+
+            try {
+                const response = await fetch(`${backendUrl}/api/categories`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('categoriesResult').innerHTML = 
+                        `<div class="success">✅ Categories API working! Found ${data.length} categories</div>
+                         <pre>${JSON.stringify(data[0], null, 2)}</pre>`;
+                } else {
+                    document.getElementById('categoriesResult').innerHTML = 
+                        `<div class="error">❌ API error: ${response.status}</div>
+                         <pre>${JSON.stringify(data, null, 2)}</pre>`;
+                }
+            } catch (error) {
+                document.getElementById('categoriesResult').innerHTML = 
+                    `<div class="error">❌ Request failed: ${error.message}</div>`;
+            }
+        }
+
+        async function testRegistration() {
+            if (!backendUrl) {
+                document.getElementById('registrationResult').innerHTML = 
+                    '<div class="error">❌ Please set backend URL first</div>';
+                return;
+            }
+
+            const email = document.getElementById('testEmail').value;
+            const password = document.getElementById('testPassword').value;
+            const fullName = document.getElementById('testName').value;
+
+            if (!email || !password || !fullName) {
+                document.getElementById('registrationResult').innerHTML = 
+                    '<div class="error">❌ Please fill in all fields</div>';
+                return;
+            }
+
+            document.getElementById('registrationResult').innerHTML = 
+                '<div class="loading">⏳ Testing registration...</div>';
+
+            try {
+                const response = await fetch(`${backendUrl}/auth/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        password: password,
+                        full_name: fullName
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('registrationResult').innerHTML = 
+                        `<div class="success">✅ Registration successful!</div>
+                         <pre>${JSON.stringify(data, null, 2)}</pre>`;
+                } else {
+                    document.getElementById('registrationResult').innerHTML = 
+                        `<div class="error">❌ Registration failed: ${response.status}</div>
+                         <pre>${JSON.stringify(data, null, 2)}</pre>`;
+                }
+            } catch (error) {
+                document.getElementById('registrationResult').innerHTML = 
+                    `<div class="error">❌ Registration request failed: ${error.message}</div>`;
+            }
+        }
+
+        async function testCORS() {
+            if (!backendUrl) {
+                document.getElementById('corsResult').innerHTML = 
+                    '<div class="error">❌ Please set backend URL first</div>';
+                return;
+            }
+
+            document.getElementById('corsResult').innerHTML = 
+                '<div class="loading">⏳ Testing CORS...</div>';
+
+            try {
+                const response = await fetch(`${backendUrl}/api/categories`, {
+                    method: 'OPTIONS'
+                });
+                
+                const corsHeaders = {
+                    'Access-Control-Allow-Origin': response.headers.get('Access-Control-Allow-Origin'),
+                    'Access-Control-Allow-Methods': response.headers.get('Access-Control-Allow-Methods'),
+                    'Access-Control-Allow-Headers': response.headers.get('Access-Control-Allow-Headers'),
+                };
+
+                document.getElementById('corsResult').innerHTML = 
+                    `<div class="success">✅ CORS headers received</div>
+                     <pre>${JSON.stringify(corsHeaders, null, 2)}</pre>`;
+            } catch (error) {
+                document.getElementById('corsResult').innerHTML = 
+                    `<div class="error">❌ CORS test failed: ${error.message}</div>`;
+            }
+        }
+
+        // Load saved config on page load
+        loadConfig();
+    </script>
+</body>
+</html>
