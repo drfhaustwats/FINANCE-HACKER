@@ -46,9 +46,10 @@ def test_create_users():
     try:
         # Create User A
         user_a_data = {
-            "name": f"User A Test {uuid.uuid4().hex[:8]}",
             "email": f"user_a_{uuid.uuid4().hex[:8]}@example.com",
-            "household_name": "User A Household"
+            "password": "SecurePassword123!",
+            "full_name": f"User A Test {uuid.uuid4().hex[:8]}",
+            "username": f"user_a_{uuid.uuid4().hex[:8]}"
         }
         response_a = requests.post(f"{API_URL}/users", json=user_a_data)
         success_a = response_a.status_code == 200 and "id" in response_a.json()
@@ -63,9 +64,10 @@ def test_create_users():
         
         # Create User B
         user_b_data = {
-            "name": f"User B Test {uuid.uuid4().hex[:8]}",
             "email": f"user_b_{uuid.uuid4().hex[:8]}@example.com",
-            "household_name": "User B Household"
+            "password": "SecurePassword456!",
+            "full_name": f"User B Test {uuid.uuid4().hex[:8]}",
+            "username": f"user_b_{uuid.uuid4().hex[:8]}"
         }
         response_b = requests.post(f"{API_URL}/users", json=user_b_data)
         success_b = response_b.status_code == 200 and "id" in response_b.json()
