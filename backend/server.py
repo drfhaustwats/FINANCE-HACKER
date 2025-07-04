@@ -560,30 +560,66 @@ def parse_cibc_debit_transactions(text: str, user_id: str, source_filename: str,
             line_without_balance = remaining_line[:balance_match.start()].strip()
             
             # Look for withdrawal or deposit amount before balance
-            amount_pattern = r'(\d+\.\d{2})\s+(\d+\.\d{2})?'
+            # Enhanced logic to differentiate between withdrawal and deposit columns
             amounts = re.findall(r'(\d+\.\d{2})', line_without_balance)
             
             if not amounts:
                 continue
-                
-            # The transaction amount is typically the first amount found
-            # Enhanced to handle negative amounts and credits
-            amount_str = amounts[0].strip()
             
-            # Check for negative sign (indicates credit/deposit)
-            is_credit = False
-            if amount_str.startswith('-') or amount_str.startswith('('):
-                is_credit = True
-                amount_str = amount_str.replace('-', '').replace('(', '').replace(')', '').strip()
+            # Extract description first to determine transaction type
+            desc_parts = line_without_balance.split()
+            description_parts = []
+            amount_positions = []
             
-            transaction_amount = float(amount_str)
+            # Find positions of amounts in the line
+            for amount in amounts:
+                pos = line_without_balance.find(amount)
+                if pos != -1:
+                    amount_positions.append(pos)
             
-            # For debit accounts: negative usually means deposit/credit, positive means withdrawal/debit
-            if is_credit:
-                transaction_amount = -transaction_amount
-                print(f"💳 DEBIT CREDIT/DEPOSIT detected: ${abs(transaction_amount)} (stored as negative)")
+            # Extract description (words before the first amount)
+            if amount_positions:
+                first_amount_pos = min(amount_positions)
+                description = line_without_balance[:first_amount_pos].strip()
             else:
-                print(f"💰 DEBIT WITHDRAWAL detected: ${transaction_amount} (stored as positive)")
+                description = line_without_balance.strip()
+            
+            # Determine transaction type based on description keywords
+            deposit_keywords = ['deposit', 'payroll', 'salary', 'refund', 'credit', 'transfer in', 'interest']
+            withdrawal_keywords = ['withdrawal', 'purchase', 'payment', 'fee', 'charge', 'debit', 'atm', 'pos']
+            
+            is_deposit = any(keyword in description.lower() for keyword in deposit_keywords)
+            is_withdrawal = any(keyword in description.lower() for keyword in withdrawal_keywords)
+            
+            # If we have multiple amounts, try to determine which column represents what
+            if len(amounts) >= 2:
+                # Assume format: Description | Withdrawals | Deposits | Balance
+                # If it's clearly a deposit, use the second amount; otherwise use the first
+                if is_deposit:
+                    transaction_amount = float(amounts[1])  # Deposit column
+                    transaction_amount = -transaction_amount  # Deposits are negative (inflow)
+                    print(f"💳 DEBIT DEPOSIT detected: ${abs(transaction_amount)} (stored as negative)")
+                else:
+                    transaction_amount = float(amounts[0])  # Withdrawal column
+                    print(f"💰 DEBIT WITHDRAWAL detected: ${transaction_amount} (stored as positive)")
+            else:
+                # Single amount - determine based on description
+                amount_str = amounts[0].strip()
+                
+                # Check for explicit negative sign (indicates credit/deposit)
+                is_credit = False
+                if amount_str.startswith('-') or amount_str.startswith('('):
+                    is_credit = True
+                    amount_str = amount_str.replace('-', '').replace('(', '').replace(')', '').strip()
+                
+                transaction_amount = float(amount_str)
+                
+                # Apply transaction type logic
+                if is_credit or is_deposit:
+                    transaction_amount = -transaction_amount
+                    print(f"💳 DEBIT CREDIT/DEPOSIT detected: ${abs(transaction_amount)} (stored as negative)")
+                else:
+                    print(f"💰 DEBIT WITHDRAWAL detected: ${transaction_amount} (stored as positive)")
             
             # Extract description (everything between date and amounts)
             desc_end_pos = line_without_balance.rfind(amounts[0])
