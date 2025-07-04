@@ -33,6 +33,18 @@ import random
 import string
 from authlib.integrations.starlette_client import OAuth
 import httpx
+# Initialize OAuth client
+oauth = OAuth()
+google_oauth = oauth.register(
+    name='google',
+    client_id=GOOGLE_CLIENT_ID,
+    client_secret=GOOGLE_CLIENT_SECRET,
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={
+        'scope': 'openid email profile'
+    }
+)
+
 
 ROOT_DIR = Path(__file__).parent
 # Load environment variables - prefer .env.local for development
@@ -560,70 +572,40 @@ def parse_cibc_debit_transactions(text: str, user_id: str, source_filename: str,
             line_without_balance = remaining_line[:balance_match.start()].strip()
             
             # Look for withdrawal or deposit amount before balance
-            # Enhanced logic to differentiate between withdrawal and deposit columns
+            amount_pattern = r'(\d+\.\d{2})\s+(\d+\.\d{2})?'
             amounts = re.findall(r'(\d+\.\d{2})', line_without_balance)
             
             if not amounts:
                 continue
+                
+            # The transaction amount is typically the first amount found
+            # Enhanced to handle negative amounts and credits
+            amount_str = amounts[0].strip()
             
-            # Extract description first to determine transaction type
-            desc_parts = line_without_balance.split()
-            description_parts = []
-            amount_positions = []
+            # Check for negative sign (indicates credit/deposit)
+            is_credit = False
+            if amount_str.startswith('-') or amount_str.startswith('('):
+                is_credit = True
+                amount_str = amount_str.replace('-', '').replace('(', '').replace(')', '').strip()
             
-            # Find positions of amounts in the line
-            for amount in amounts:
-                pos = line_without_balance.find(amount)
-                if pos != -1:
-                    amount_positions.append(pos)
+            transaction_amount = float(amount_str)
             
-            # Extract description (words before the first amount)
-            if amount_positions:
-                first_amount_pos = min(amount_positions)
-                description = line_without_balance[:first_amount_pos].strip()
+            # For debit accounts: negative usually means deposit/credit, positive means withdrawal/debit
+            if is_credit:
+                transaction_amount = -transaction_amount
+                print(f"💳 DEBIT CREDIT/DEPOSIT detected: ${abs(transaction_amount)} (stored as negative)")
             else:
-                description = line_without_balance.strip()
+                print(f"💰 DEBIT WITHDRAWAL detected: ${transaction_amount} (stored as positive)")
             
-            # Determine transaction type based on description keywords
-            deposit_keywords = ['deposit', 'payroll', 'salary', 'refund', 'credit', 'transfer in', 'interest']
-            withdrawal_keywords = ['withdrawal', 'purchase', 'payment', 'fee', 'charge', 'debit', 'atm', 'pos']
-            
-            is_deposit = any(keyword in description.lower() for keyword in deposit_keywords)
-            is_withdrawal = any(keyword in description.lower() for keyword in withdrawal_keywords)
-            
-            # If we have multiple amounts, try to determine which column represents what
-            if len(amounts) >= 2:
-                # Assume format: Description | Withdrawals | Deposits | Balance
-                # If it's clearly a deposit, use the second amount; otherwise use the first
-                if is_deposit:
-                    transaction_amount = float(amounts[1])  # Deposit column
-                    transaction_amount = -transaction_amount  # Deposits are negative (inflow)
-                    print(f"💳 DEBIT DEPOSIT detected: ${abs(transaction_amount)} (stored as negative)")
-                else:
-                    transaction_amount = float(amounts[0])  # Withdrawal column
-                    print(f"💰 DEBIT WITHDRAWAL detected: ${transaction_amount} (stored as positive)")
-            else:
-                # Single amount - determine based on description
-                amount_str = amounts[0].strip()
+            # Extract description (everything between date and amounts)
+            desc_end_pos = line_without_balance.rfind(amounts[0])
+            if desc_end_pos == -1:
+                continue
                 
-                # Check for explicit negative sign (indicates credit/deposit)
-                is_credit = False
-                if amount_str.startswith('-') or amount_str.startswith('('):
-                    is_credit = True
-                    amount_str = amount_str.replace('-', '').replace('(', '').replace(')', '').strip()
-                
-                transaction_amount = float(amount_str)
-                
-                # Apply transaction type logic
-                if is_credit or is_deposit:
-                    transaction_amount = -transaction_amount
-                    print(f"💳 DEBIT CREDIT/DEPOSIT detected: ${abs(transaction_amount)} (stored as negative)")
-                else:
-                    print(f"💰 DEBIT WITHDRAWAL detected: ${transaction_amount} (stored as positive)")
+            description = line_without_balance[:desc_end_pos].strip()
             
-            # Extract description (everything between date and amounts) - already extracted above
             # Clean up description
-            description = re.sub(r'\s+', ' ', description.strip())
+            description = re.sub(r'\s+', ' ', description)
             
             # Skip if description is too short or looks like header
             if len(description) < 5:
@@ -775,7 +757,15 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                         # Clean up the description and category part
                         desc_and_cat = description_and_category.strip()
                         
-                        # Try to identify where description ends and category begins first
+                        # Skip payment transactions - these are not expenses
+                        if any(payment_keyword in desc_and_cat.upper() for payment_keyword in [
+                            'PAYMENT THANK YOU', 'PAIEMENT MERCI', 'PAYMENT - THANK YOU', 
+                            'THANK YOU FOR YOUR PAYMENT', 'PAYMENT RECEIVED'
+                        ]):
+                            print(f"SKIPPED PAYMENT: {desc_and_cat}")
+                            continue
+                        
+                        # Try to identify where description ends and category begins
                         category_str = ""
                         description = desc_and_cat
                         
@@ -807,23 +797,8 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                                 description = parts[0].strip()
                                 category_str = ' '.join(parts[1:]).strip()
                         
-                        # Check if this is a payment transaction - these should be treated as inflows
-                        payment_keywords = [
-                            'PAYMENT THANK YOU', 'PAIEMENT MERCI', 'PAYMENT - THANK YOU', 
-                            'THANK YOU FOR YOUR PAYMENT', 'PAYMENT RECEIVED', 'PAIEMENT',
-                            'PAYMENT/PAIEMENT', 'CREDIT CARD PAYMENT'
-                        ]
-                        
-                        is_payment = any(payment_keyword in desc_and_cat.upper() for payment_keyword in payment_keywords)
-                        
-                        if is_payment:
-                            # For credit cards: payments should be treated as negative (inflow)
-                            print(f"💳 PAYMENT DETECTED: Converting ${clean_amount_str} to inflow (negative)")
-                            transaction_match = (trans_date_str, post_date_str, description, category_str, f"-{clean_amount_str}")
-                            print(f"PAYMENT CONVERTED: Date={trans_date_str}, Desc='{description}', Cat='{category_str}', Amt=-{clean_amount_str}")
-                        else:
-                            transaction_match = (trans_date_str, post_date_str, description, category_str, clean_amount_str)
-                            print(f"EXTRACTED: Date={trans_date_str}, Desc='{description}', Cat='{category_str}', Amt={clean_amount_str} (original: {amount_str})")
+                        transaction_match = (trans_date_str, post_date_str, description, category_str, clean_amount_str)
+                        print(f"EXTRACTED: Date={trans_date_str}, Desc='{description}', Cat='{category_str}', Amt={clean_amount_str} (original: {amount_str})")
                     else:
                         print(f"Could not extract dates from: {line_without_amount}")
                 
@@ -1152,20 +1127,41 @@ async def delete_category(category_id: str, user_id: str = Depends(get_current_u
     return {"message": "Category deleted successfully"}
 
 # Transaction Management (Enhanced)
-@api_router.post("/transactions", response_model=Transaction)
-async def create_transaction(transaction: TransactionCreate, user_id: str = Depends(get_current_user_id)):
-    transaction_dict = transaction.dict()
-    transaction_dict['user_id'] = user_id
-    
-    transaction_obj = Transaction(**transaction_dict)
-    
-    # Convert date to string for MongoDB storage
-    transaction_data = transaction_obj.dict()
-    transaction_data['date'] = transaction_data['date'].isoformat()
-    transaction_data['created_at'] = transaction_data['created_at'].isoformat()
-    
-    await db.transactions.insert_one(transaction_data)
-    return transaction_obj
+@api_router.post("/transactions")
+async def create_transaction(
+    transaction: dict, 
+    current_user_id: str = Depends(get_current_user_id)
+):
+    try:
+        # Create transaction document with manual inflow/outflow override
+        transaction_doc = {
+            "id": str(uuid.uuid4()),
+            "user_id": current_user_id,
+            "date": transaction["date"],
+            "description": transaction["description"],
+            "category": transaction["category"],
+            "amount": float(transaction["amount"]),
+            "account_type": transaction.get("account_type", "credit_card"),
+            "pdf_source": transaction.get("pdf_source", "Manual"),
+            "created_at": datetime.utcnow(),
+            # NEW: Allow manual override of inflow/outflow
+            "is_inflow": transaction.get("is_inflow", None),  # None means auto-detect
+            "original_amount": float(transaction["amount"])  # Store original for reference
+        }
+        
+        # If is_inflow is manually set, respect that override
+        if transaction_doc["is_inflow"] is not None:
+            if transaction_doc["is_inflow"] and transaction_doc["amount"] > 0:
+                transaction_doc["amount"] = -abs(transaction_doc["amount"])
+            elif not transaction_doc["is_inflow"] and transaction_doc["amount"] < 0:
+                transaction_doc["amount"] = abs(transaction_doc["amount"])
+        
+        await db.transactions.insert_one(transaction_doc)
+        
+        return {"message": "Transaction created successfully", "id": transaction_doc["id"]}
+    except Exception as e:
+        logging.error(f"Error creating transaction: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/transactions", response_model=List[Transaction])
 async def get_transactions(
@@ -1218,6 +1214,7 @@ class TransactionUpdate(BaseModel):
     category: Optional[str] = None
     description: Optional[str] = None
     amount: Optional[float] = None
+    is_inflow: Optional[bool] = None  # NEW: Allow manual inflow/outflow override
 
 @api_router.put("/transactions/{transaction_id}")
 async def update_transaction(
@@ -1225,11 +1222,47 @@ async def update_transaction(
     transaction_update: TransactionUpdate,
     user_id: str = Depends(get_current_user_id)
 ):
-    """Update a transaction's category, description, or amount"""
-    update_data = {k: v for k, v in transaction_update.dict().items() if v is not None}
+    """Update a transaction's category, description, amount, or inflow/outflow status"""
+    update_data = {}
+    
+    # Handle regular field updates
+    for field in ["category", "description"]:
+        value = getattr(transaction_update, field)
+        if value is not None:
+            update_data[field] = value
+    
+    # Handle amount and inflow/outflow logic
+    amount = transaction_update.amount
+    is_inflow = transaction_update.is_inflow
+    
+    if amount is not None or is_inflow is not None:
+        # Get current transaction to understand current state
+        current_transaction = await db.transactions.find_one({"id": transaction_id, "user_id": user_id})
+        if not current_transaction:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        
+        # Use current amount if not updating amount
+        final_amount = amount if amount is not None else current_transaction.get("amount", 0)
+        
+        # If is_inflow is specified, apply the inflow/outflow logic
+        if is_inflow is not None:
+            if is_inflow and final_amount > 0:
+                final_amount = -abs(final_amount)  # Make it negative for inflow
+            elif not is_inflow and final_amount < 0:
+                final_amount = abs(final_amount)   # Make it positive for outflow
+            update_data["is_inflow"] = is_inflow
+        
+        update_data["amount"] = final_amount
+        
+        # Store original amount for reference
+        if amount is not None:
+            update_data["original_amount"] = amount
     
     if not update_data:
         raise HTTPException(status_code=400, detail="No update data provided")
+    
+    # Add update timestamp
+    update_data["updated_at"] = datetime.utcnow()
     
     result = await db.transactions.update_one(
         {"id": transaction_id, "user_id": user_id},
@@ -1237,7 +1270,7 @@ async def update_transaction(
     )
     
     if result.modified_count == 0:
-        raise HTTPException(status_code=404, detail="Transaction not found")
+        raise HTTPException(status_code=404, detail="Transaction not found or no changes made")
     
     # Return updated transaction
     updated_transaction = await db.transactions.find_one({"id": transaction_id, "user_id": user_id})
@@ -1247,6 +1280,8 @@ async def update_transaction(
             del updated_transaction['_id']
         if 'created_at' in updated_transaction and hasattr(updated_transaction['created_at'], 'isoformat'):
             updated_transaction['created_at'] = updated_transaction['created_at'].isoformat()
+        if 'updated_at' in updated_transaction and hasattr(updated_transaction['updated_at'], 'isoformat'):
+            updated_transaction['updated_at'] = updated_transaction['updated_at'].isoformat()
         return updated_transaction
     else:
         raise HTTPException(status_code=404, detail="Updated transaction not found")
@@ -2102,97 +2137,29 @@ async def change_password(
 # Google OAuth Endpoints
 @auth_router.get("/google/login")
 async def google_login(request: Request):
-    try:
-        # Load environment variables directly from .env.local
-        google_client_id = None
-        google_client_secret = None
-        
-        # Try to read from .env.local first
-        env_local_path = ROOT_DIR / '.env.local'
-        if env_local_path.exists():
-            with open(env_local_path, 'r') as f:
-                for line in f:
-                    if line.strip().startswith('GOOGLE_CLIENT_ID='):
-                        google_client_id = line.strip().split('=', 1)[1].strip('"\'')
-                    elif line.strip().startswith('GOOGLE_CLIENT_SECRET='):
-                        google_client_secret = line.strip().split('=', 1)[1].strip('"\'')
-        
-        # If not found, try environment variables
-        if not google_client_id:
-            google_client_id = os.environ.get("GOOGLE_CLIENT_ID")
-        if not google_client_secret:
-            google_client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
-        
-        # Validate OAuth configuration
-        if not google_client_id or not google_client_secret:
-            logging.error("Google OAuth credentials not found in .env.local or environment variables")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Google OAuth not configured"
-            )
-        
-        # Log OAuth attempt
-        logging.info(f"Google OAuth login attempt - Client ID: {google_client_id[:10]}...")
-        
-        # Create OAuth config
-        oauth = OAuth()
-        google = oauth.register(
-            name='google',
-            client_id=google_client_id,
-            client_secret=google_client_secret,
-            server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
-            client_kwargs={
-                'scope': 'openid email profile'
-            }
-        )
-        
-        # Build redirect URI - handle both local and deployed environments
-        base_url = str(request.base_url).rstrip('/')
-        if 'localhost' in base_url or '127.0.0.1' in base_url:
-            redirect_uri = f"{base_url}/api/auth/google/callback"
-        else:
-            # For production deployments, use the API prefix
-            redirect_uri = f"{base_url}/api/auth/google/callback"
-        
-        logging.info(f"Google OAuth redirect URI: {redirect_uri}")
-        
-        return await google.authorize_redirect(request, redirect_uri)
-        
-    except Exception as e:
-        logging.error(f"Google OAuth login error: {e}")
-        import traceback
-        logging.error(traceback.format_exc())
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Google OAuth login failed: {str(e)}"
-        )
+    # Create OAuth config
+    oauth = OAuth()
+    google = oauth.register(
+        name='google',
+        client_id=GOOGLE_CLIENT_ID,
+        client_secret=GOOGLE_CLIENT_SECRET,
+        server_metadata_url='https://accounts.google.com/.well-known/openid_configuration',
+        client_kwargs={
+            'scope': 'openid email profile'
+        }
+    )
+    
+    # Build redirect URI
+    redirect_uri = f"{str(request.base_url).rstrip('/')}/auth/google/callback"
+    return await google.authorize_redirect(request, redirect_uri)
 
 @auth_router.get("/google/callback")
 async def google_callback(request: Request):
     try:
-        # Load environment variables directly from .env.local
-        google_client_id = None
-        google_client_secret = None
-        
-        # Try to read from .env.local first
-        env_local_path = ROOT_DIR / '.env.local'
-        if env_local_path.exists():
-            with open(env_local_path, 'r') as f:
-                for line in f:
-                    if line.strip().startswith('GOOGLE_CLIENT_ID='):
-                        google_client_id = line.strip().split('=', 1)[1].strip('"\'')
-                    elif line.strip().startswith('GOOGLE_CLIENT_SECRET='):
-                        google_client_secret = line.strip().split('=', 1)[1].strip('"\'')
-        
-        # If not found, try environment variables
-        if not google_client_id:
-            google_client_id = os.environ.get("GOOGLE_CLIENT_ID")
-        if not google_client_secret:
-            google_client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
-        
         # Validate OAuth configuration
-        if not google_client_id or not google_client_secret:
-            logging.error("Google OAuth credentials not found in .env.local or environment variables")
+        if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+            logging.error("Google OAuth not configured")
+            # CRITICAL FIX: Don't create a user session on OAuth failure
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Google OAuth not configured"
@@ -2204,17 +2171,25 @@ async def google_callback(request: Request):
         oauth = OAuth()
         google = oauth.register(
             name='google',
-            client_id=google_client_id,
-            client_secret=google_client_secret,
-            server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+            client_id=GOOGLE_CLIENT_ID,
+            client_secret=GOOGLE_CLIENT_SECRET,
+            server_metadata_url='https://accounts.google.com/.well-known/openid_configuration',
             client_kwargs={
                 'scope': 'openid email profile'
             }
         )
         
         # Get token and user info
-        token = await google.authorize_access_token(request)
-        user_info = token.get('userinfo')
+        try:
+            token = await google.authorize_access_token(request)
+            user_info = token.get('userinfo')
+        except Exception as oauth_error:
+            logging.error(f"OAuth token exchange failed: {oauth_error}")
+            # CRITICAL FIX: Properly handle OAuth failures without creating session
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Google OAuth failed: {str(oauth_error)}"
+            )
         
         if not user_info or not user_info.get('email'):
             raise HTTPException(
@@ -2277,10 +2252,14 @@ async def google_callback(request: Request):
         
         return {"redirect_url": redirect_url, "access_token": access_token, "token_type": "bearer"}
         
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
         logging.error(f"Google OAuth callback error: {e}")
         import traceback
         logging.error(traceback.format_exc())
+        # CRITICAL FIX: Don't create session on unexpected errors
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"OAuth authentication failed: {str(e)}"

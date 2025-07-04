@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState } from 'react';
+import TransactionFlowControl from './TransactionFlowControl';
 
 const OptimizedTransactionTable = ({
   transactions,
@@ -17,8 +18,11 @@ const OptimizedTransactionTable = ({
   onCancelCategoryEdit,
   categories,
   formatCurrency,
-  formatDate
+  formatDate,
+  onUpdateTransaction  // NEW: Add transaction update handler
 }) => {
+
+  const [editingFlowId, setEditingFlowId] = useState(null);
 
   const getTransactionFlowIcon = (amount) => {
     return amount < 0 ? '💰' : '💸'; // Inflow vs Outflow
@@ -30,6 +34,16 @@ const OptimizedTransactionTable = ({
 
   const getTransactionFlowColor = (amount) => {
     return amount < 0 ? 'text-green-600' : 'text-red-600';
+  };
+
+  const handleUpdateTransactionFlow = async (transactionId, updateData) => {
+    try {
+      await onUpdateTransaction(transactionId, updateData);
+      setEditingFlowId(null);
+    } catch (error) {
+      console.error('Error updating transaction flow:', error);
+      alert('Failed to update transaction flow. Please try again.');
+    }
   };
 
   return (
@@ -117,117 +131,132 @@ const OptimizedTransactionTable = ({
           
           <tbody className="bg-white divide-y divide-gray-200">
             {transactions.map((transaction) => (
-              <tr 
-                key={transaction.id} 
-                className={`hover:bg-gray-50 transition-colors ${selectedTransactions.has(transaction.id) ? 'bg-blue-50' : ''}`}
-              >
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <input
-                    type="checkbox"
-                    checked={selectedTransactions.has(transaction.id)}
-                    onChange={() => onSelectTransaction(transaction.id)}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                </td>
-                
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {formatDate(transaction.date)}
-                </td>
-                
-                <td className="px-6 py-4 text-sm text-gray-900 max-w-xs">
-                  <div className="truncate" title={transaction.description}>
-                    {transaction.description}
-                  </div>
-                </td>
-                
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {editingTransactionId === transaction.id ? (
-                    <div className="flex items-center space-x-2">
-                      <select
-                        value={tempTransactionCategory}
-                        onChange={(e) => onTempTransactionCategoryChange(e.target.value)}
-                        className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        {categories.map(category => (
-                          <option key={category.id} value={category.name}>{category.name}</option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => onSaveCategoryEdit(transaction.id)}
-                        className="text-green-600 hover:text-green-800 text-xs"
-                        title="Save"
-                      >
-                        ✓
-                      </button>
-                      <button
-                        onClick={onCancelCategoryEdit}
-                        className="text-red-600 hover:text-red-800 text-xs"
-                        title="Cancel"
-                      >
-                        ✕
-                      </button>
+              <React.Fragment key={transaction.id}>
+                <tr className={`hover:bg-gray-50 transition-colors ${selectedTransactions.has(transaction.id) ? 'bg-blue-50' : ''}`}>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      checked={selectedTransactions.has(transaction.id)}
+                      onChange={() => onSelectTransaction(transaction.id)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                  </td>
+                  
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {formatDate(transaction.date)}
+                  </td>
+                  
+                  <td className="px-6 py-4 text-sm text-gray-900 max-w-xs">
+                    <div className="truncate" title={transaction.description}>
+                      {transaction.description}
                     </div>
-                  ) : (
-                    <span 
-                      className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 cursor-pointer hover:bg-blue-200 transition-colors"
-                      onClick={() => onEditCategory(transaction.id, transaction.category)}
-                      title="Click to edit category"
-                    >
-                      {transaction.category}
+                  </td>
+                  
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {editingTransactionId === transaction.id ? (
+                      <div className="flex items-center space-x-2">
+                        <select
+                          value={tempTransactionCategory}
+                          onChange={(e) => onTempTransactionCategoryChange(e.target.value)}
+                          className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          {categories.map(category => (
+                            <option key={category.id} value={category.name}>{category.name}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => onSaveCategoryEdit(transaction.id)}
+                          className="text-green-600 hover:text-green-800 text-xs"
+                          title="Save"
+                        >
+                          ✓
+                        </button>
+                        <button
+                          onClick={onCancelCategoryEdit}
+                          className="text-red-600 hover:text-red-800 text-xs"
+                          title="Cancel"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <span 
+                        className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 cursor-pointer hover:bg-blue-200 transition-colors"
+                        onClick={() => onEditCategory(transaction.id, transaction.category)}
+                        title="Click to edit category"
+                      >
+                        {transaction.category}
+                      </span>
+                    )}
+                  </td>
+                  
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <span className={getTransactionFlowColor(transaction.amount)}>
+                      {formatCurrency(transaction.amount)}
                     </span>
-                  )}
-                </td>
-                
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <span className={getTransactionFlowColor(transaction.amount)}>
-                    {formatCurrency(transaction.amount)}
-                  </span>
-                </td>
-                
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-lg">
-                      {getTransactionFlowIcon(transaction.amount)}
-                    </span>
-                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                      transaction.amount < 0 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {getTransactionFlowLabel(transaction.amount)}
-                    </span>
-                  </div>
-                </td>
-                
-                <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
-                  <div className="flex items-center space-x-1">
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      transaction.account_type === 'debit' 
-                        ? 'bg-blue-100 text-blue-800' 
-                        : 'bg-purple-100 text-purple-800'
-                    }`}>
-                      {transaction.account_type === 'debit' ? '💳 Debit' : '💰 Credit'}
-                    </span>
-                  </div>
-                  {transaction.pdf_source && transaction.pdf_source !== 'Manual' && (
-                    <div className="mt-1">
-                      <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs" title={transaction.pdf_source}>
-                        📄 {transaction.pdf_source.length > 12 ? transaction.pdf_source.substring(0, 9) + '...' : transaction.pdf_source}
+                  </td>
+                  
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-lg">
+                        {getTransactionFlowIcon(transaction.amount)}
+                      </span>
+                      <span className={`text-xs font-medium px-2 py-1 rounded-full cursor-pointer hover:opacity-80 transition-opacity ${
+                        transaction.amount < 0 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}
+                      onClick={() => setEditingFlowId(transaction.id)}
+                      title="Click to change inflow/outflow"
+                      >
+                        {getTransactionFlowLabel(transaction.amount)}
                       </span>
                     </div>
-                  )}
-                </td>
+                  </td>
+                  
+                  <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
+                    <div className="flex items-center space-x-1">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        transaction.account_type === 'debit' 
+                          ? 'bg-blue-100 text-blue-800' 
+                          : 'bg-purple-100 text-purple-800'
+                      }`}>
+                        {transaction.account_type === 'debit' ? '💳 Debit' : '💰 Credit'}
+                      </span>
+                    </div>
+                    {transaction.pdf_source && transaction.pdf_source !== 'Manual' && (
+                      <div className="mt-1">
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs" title={transaction.pdf_source}>
+                          📄 {transaction.pdf_source.length > 12 ? transaction.pdf_source.substring(0, 9) + '...' : transaction.pdf_source}
+                        </span>
+                      </div>
+                    )}
+                  </td>
+                  
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <button
+                      onClick={() => onDeleteTransaction(transaction.id)}
+                      className="text-red-600 hover:text-red-900 transition-colors"
+                      title="Delete transaction"
+                    >
+                      🗑️
+                    </button>
+                  </td>
+                </tr>
                 
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <button
-                    onClick={() => onDeleteTransaction(transaction.id)}
-                    className="text-red-600 hover:text-red-900 transition-colors"
-                    title="Delete transaction"
-                  >
-                    🗑️
-                  </button>
-                </td>
-              </tr>
+                {/* Flow Control Row */}
+                {editingFlowId === transaction.id && (
+                  <tr>
+                    <td colSpan="8" className="px-6 py-2 bg-gray-50 border-t border-gray-200">
+                      <TransactionFlowControl
+                        transaction={transaction}
+                        onUpdate={handleUpdateTransactionFlow}
+                        onCancel={() => setEditingFlowId(null)}
+                      />
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
             ))}
           </tbody>
         </table>

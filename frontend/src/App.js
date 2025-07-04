@@ -201,6 +201,16 @@ function Dashboard() {
     }
   };
 
+  const handleUpdateTransaction = async (transactionId, updateData) => {
+    try {
+      await axios.put(`${API}/transactions/${transactionId}`, updateData);
+      fetchData(); // Refresh data to show the updated transaction
+    } catch (error) {
+      console.error('Error updating transaction:', error);
+      throw error; // Re-throw so component can handle it
+    }
+  };
+
   const handleSelectTransaction = (transactionId) => {
     const newSelected = new Set(selectedTransactions);
     if (newSelected.has(transactionId)) {
@@ -766,6 +776,7 @@ function Dashboard() {
               categories={categories}
               formatCurrency={formatCurrency}
               formatDate={formatDate}
+              onUpdateTransaction={handleUpdateTransaction}
             />
 
             {/* Action Bar */}
