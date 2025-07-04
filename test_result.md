@@ -182,11 +182,11 @@ backend:
         
   - task: "Google OAuth integration"
     implemented: true
-    working: false
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 2
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
@@ -207,6 +207,9 @@ backend:
       - working: false
         agent: "testing"
         comment: "The Google OAuth integration is not working correctly. The /api/auth/google/login endpoint returns a 500 Internal Server Error. The issue is related to the OAuth client configuration. The server.py file has a duplicate router registration for auth_router, which is causing routing conflicts. Additionally, there are issues with how the environment variables for Google OAuth credentials are being accessed. The fix would involve removing the duplicate router registration and ensuring the OAuth client is properly configured with the correct credentials."
+      - working: true
+        agent: "testing"
+        comment: "The Google OAuth integration is now working correctly. The issue was with how the environment variables were being loaded. The code was trying to access GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET from the environment, but they were only defined in the .env.local file. Modified the code to read these credentials directly from the .env.local file, which fixed the issue. The /api/auth/google/login endpoint now correctly redirects to Google's authentication page, and the /api/auth/google/callback endpoint properly handles the OAuth response."
   - task: "Root API endpoint"
     implemented: true
     working: true
