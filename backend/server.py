@@ -1214,6 +1214,7 @@ class TransactionUpdate(BaseModel):
     category: Optional[str] = None
     description: Optional[str] = None
     amount: Optional[float] = None
+    is_inflow: Optional[bool] = None  # NEW: Allow manual inflow/outflow override
 
 @api_router.put("/transactions/{transaction_id}")
 async def update_transaction(
@@ -1221,11 +1222,47 @@ async def update_transaction(
     transaction_update: TransactionUpdate,
     user_id: str = Depends(get_current_user_id)
 ):
-    """Update a transaction's category, description, or amount"""
-    update_data = {k: v for k, v in transaction_update.dict().items() if v is not None}
+    """Update a transaction's category, description, amount, or inflow/outflow status"""
+    update_data = {}
+    
+    # Handle regular field updates
+    for field in ["category", "description"]:
+        value = getattr(transaction_update, field)
+        if value is not None:
+            update_data[field] = value
+    
+    # Handle amount and inflow/outflow logic
+    amount = transaction_update.amount
+    is_inflow = transaction_update.is_inflow
+    
+    if amount is not None or is_inflow is not None:
+        # Get current transaction to understand current state
+        current_transaction = await db.transactions.find_one({"id": transaction_id, "user_id": user_id})
+        if not current_transaction:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        
+        # Use current amount if not updating amount
+        final_amount = amount if amount is not None else current_transaction.get("amount", 0)
+        
+        # If is_inflow is specified, apply the inflow/outflow logic
+        if is_inflow is not None:
+            if is_inflow and final_amount > 0:
+                final_amount = -abs(final_amount)  # Make it negative for inflow
+            elif not is_inflow and final_amount < 0:
+                final_amount = abs(final_amount)   # Make it positive for outflow
+            update_data["is_inflow"] = is_inflow
+        
+        update_data["amount"] = final_amount
+        
+        # Store original amount for reference
+        if amount is not None:
+            update_data["original_amount"] = amount
     
     if not update_data:
         raise HTTPException(status_code=400, detail="No update data provided")
+    
+    # Add update timestamp
+    update_data["updated_at"] = datetime.utcnow()
     
     result = await db.transactions.update_one(
         {"id": transaction_id, "user_id": user_id},
@@ -1233,7 +1270,7 @@ async def update_transaction(
     )
     
     if result.modified_count == 0:
-        raise HTTPException(status_code=404, detail="Transaction not found")
+        raise HTTPException(status_code=404, detail="Transaction not found or no changes made")
     
     # Return updated transaction
     updated_transaction = await db.transactions.find_one({"id": transaction_id, "user_id": user_id})
@@ -1243,6 +1280,8 @@ async def update_transaction(
             del updated_transaction['_id']
         if 'created_at' in updated_transaction and hasattr(updated_transaction['created_at'], 'isoformat'):
             updated_transaction['created_at'] = updated_transaction['created_at'].isoformat()
+        if 'updated_at' in updated_transaction and hasattr(updated_transaction['updated_at'], 'isoformat'):
+            updated_transaction['updated_at'] = updated_transaction['updated_at'].isoformat()
         return updated_transaction
     else:
         raise HTTPException(status_code=404, detail="Updated transaction not found")
