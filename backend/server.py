@@ -2112,6 +2112,15 @@ async def google_login(request: Request):
 @auth_router.get("/google/callback")
 async def google_callback(request: Request):
     try:
+        # Validate OAuth configuration
+        if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Google OAuth not configured"
+            )
+        
+        logging.info("Google OAuth callback received")
+        
         # Create OAuth config
         oauth = OAuth()
         google = oauth.register(
@@ -2137,6 +2146,8 @@ async def google_callback(request: Request):
         email = user_info['email']
         full_name = user_info.get('name', '')
         username = email.split('@')[0]
+        
+        logging.info(f"Google OAuth user: {email}")
         
         # Check if user exists
         existing_user = await get_user_by_email(email)
@@ -2169,6 +2180,9 @@ async def google_callback(request: Request):
             
             await db.users.insert_one(user_doc)
             user_data = user_doc
+            
+            # Initialize default categories for new user
+            await initialize_default_categories(user_data["id"])
         
         # Create JWT token
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -2180,13 +2194,17 @@ async def google_callback(request: Request):
         frontend_url = os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:3000').replace('/api', '').replace(':8001', ':3000')
         redirect_url = f"{frontend_url}?token={access_token}"
         
+        logging.info(f"Google OAuth success - redirecting to: {frontend_url}")
+        
         return {"redirect_url": redirect_url, "access_token": access_token, "token_type": "bearer"}
         
     except Exception as e:
         logging.error(f"Google OAuth callback error: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="OAuth authentication failed"
+            detail=f"OAuth authentication failed: {str(e)}"
         )
 
 # Legacy endpoint for backward compatibility (will be removed later)
