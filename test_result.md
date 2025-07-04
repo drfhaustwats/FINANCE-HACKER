@@ -563,20 +563,6 @@ test_plan:
   current_focus:
     - "UI/UX Improvements"
     - "Customizable Analytics Dashboard"
-  - task: "Transaction Sign Handling Enhancement"
-    implemented: true
-    working: true
-    file: "/app/backend/server.py"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: false
-    status_history:
-      - working: "NA"
-        agent: "main"
-        comment: "Need to enhance transaction sign handling for better credit/debit distinction. Credit Cards: Negative (-) = inflow, positive = outflow. Debit Cards: Maintain clear inflow/outflow distinction. Test with CIBC statement provided."
-      - working: true
-        agent: "main"
-        comment: "COMPLETED: Enhanced transaction sign handling with proper credit/debit distinction. For Credit Cards: Payment transactions (like 'PAYMENT THANK YOU') are now correctly identified and stored as negative (inflow), while regular charges remain positive (outflow). For Debit Cards: Improved logic to distinguish deposits/credits from withdrawals based on transaction type keywords and column positions. Successfully tested with CIBC statement - payment transaction now correctly shows as inflow ($1085.99) and all other transactions as outflows."
   stuck_tasks: []
   test_all: false
   test_priority: "critical_first"
