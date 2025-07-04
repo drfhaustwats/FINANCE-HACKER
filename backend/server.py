@@ -2065,47 +2065,35 @@ async def change_password(
 # Google OAuth Endpoints
 @auth_router.get("/google/login")
 async def google_login(request: Request):
-    # Create OAuth config with explicit credentials
+    # Create OAuth config
     oauth = OAuth()
-    client_id = "350583948653-23ulg9ifs0dop7ic3pq33neb92lv1ci2.apps.googleusercontent.com"
-    client_secret = "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"
-    
     google = oauth.register(
         name='google',
-        client_id=client_id,
-        client_secret=client_secret,
-        server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+        client_id=GOOGLE_CLIENT_ID,
+        client_secret=GOOGLE_CLIENT_SECRET,
+        server_metadata_url='https://accounts.google.com/.well-known/openid_configuration',
         client_kwargs={
             'scope': 'openid email profile'
         }
     )
     
-    # Build redirect URI using the API URL
-    api_base = os.environ.get('REACT_APP_BACKEND_URL', request.base_url)
-    redirect_uri = f"{api_base}/api/auth/google/callback"
-    logging.info(f"Google OAuth redirect URI: {redirect_uri}")
-    
+    # Build redirect URI
+    redirect_uri = f"{str(request.base_url).rstrip('/')}/auth/google/callback"
     return await google.authorize_redirect(request, redirect_uri)
-
 
 @auth_router.get("/google/callback")
 async def google_callback(request: Request):
     try:
         # Create OAuth config
-        # Create OAuth config with explicit credentials
         oauth = OAuth()
-        client_id = "350583948653-23ulg9ifs0dop7ic3pq33neb92lv1ci2.apps.googleusercontent.com"
-        client_secret = "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"
-        
         google = oauth.register(
             name='google',
-            client_id=client_id,
-            client_secret=client_secret,
-            server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+            client_id=GOOGLE_CLIENT_ID,
+            client_secret=GOOGLE_CLIENT_SECRET,
+            server_metadata_url='https://accounts.google.com/.well-known/openid_configuration',
             client_kwargs={
                 'scope': 'openid email profile'
             }
-        )
         )
         
         # Get token and user info
