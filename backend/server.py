@@ -2171,7 +2171,7 @@ app.include_router(api_router)
 app.include_router(auth_router, prefix="/api")
 
 # RAILWAY COMPATIBILITY: Also include auth router without /api prefix for direct access
-# Removed duplicate router registration
+app.include_router(auth_router)
 
 app.add_middleware(
     CORSMiddleware,
