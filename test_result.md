@@ -560,6 +560,9 @@ metadata:
   run_ui: false
 
 test_plan:
+  current_focus:
+    - "UI/UX Improvements"
+    - "Customizable Analytics Dashboard"
   - task: "Transaction Sign Handling Enhancement"
     implemented: true
     working: true
