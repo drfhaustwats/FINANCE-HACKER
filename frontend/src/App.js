@@ -776,6 +776,7 @@ function Dashboard() {
               categories={categories}
               formatCurrency={formatCurrency}
               formatDate={formatDate}
+              onUpdateTransaction={handleUpdateTransaction}
             />
 
             {/* Action Bar */}
