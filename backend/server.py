@@ -2065,15 +2065,6 @@ async def change_password(
 # Google OAuth Endpoints
 @auth_router.get("/google/login")
 async def google_login(request: Request):
-    # Add debug logging
-    import logging
-    logging.basicConfig(level=logging.DEBUG)
-    logging.debug("Google OAuth login endpoint called")
-    logging.debug(f"Request base_url: {request.base_url}")
-    logging.debug(f"GOOGLE_CLIENT_ID: {GOOGLE_CLIENT_ID}")
-    logging.debug(f"GOOGLE_CLIENT_SECRET: {GOOGLE_CLIENT_SECRET[:5]}...")
-
-    try:
     # Create OAuth config
     oauth = OAuth()
     google = oauth.register(
@@ -2089,14 +2080,6 @@ async def google_login(request: Request):
     # Build redirect URI
     redirect_uri = f"{str(request.base_url).rstrip('/')}/auth/google/callback"
     return await google.authorize_redirect(request, redirect_uri)
-    except Exception as e:
-        logging.error(f"Google OAuth login error: {e}")
-        import traceback
-        logging.error(traceback.format_exc())
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Google OAuth login error: {str(e)}"
-        )
 
 @auth_router.get("/google/callback")
 async def google_callback(request: Request):
