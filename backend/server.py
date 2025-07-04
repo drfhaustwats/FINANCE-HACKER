@@ -1127,20 +1127,41 @@ async def delete_category(category_id: str, user_id: str = Depends(get_current_u
     return {"message": "Category deleted successfully"}
 
 # Transaction Management (Enhanced)
-@api_router.post("/transactions", response_model=Transaction)
-async def create_transaction(transaction: TransactionCreate, user_id: str = Depends(get_current_user_id)):
-    transaction_dict = transaction.dict()
-    transaction_dict['user_id'] = user_id
-    
-    transaction_obj = Transaction(**transaction_dict)
-    
-    # Convert date to string for MongoDB storage
-    transaction_data = transaction_obj.dict()
-    transaction_data['date'] = transaction_data['date'].isoformat()
-    transaction_data['created_at'] = transaction_data['created_at'].isoformat()
-    
-    await db.transactions.insert_one(transaction_data)
-    return transaction_obj
+@api_router.post("/transactions")
+async def create_transaction(
+    transaction: dict, 
+    current_user_id: str = Depends(get_current_user_id)
+):
+    try:
+        # Create transaction document with manual inflow/outflow override
+        transaction_doc = {
+            "id": str(uuid.uuid4()),
+            "user_id": current_user_id,
+            "date": transaction["date"],
+            "description": transaction["description"],
+            "category": transaction["category"],
+            "amount": float(transaction["amount"]),
+            "account_type": transaction.get("account_type", "credit_card"),
+            "pdf_source": transaction.get("pdf_source", "Manual"),
+            "created_at": datetime.utcnow(),
+            # NEW: Allow manual override of inflow/outflow
+            "is_inflow": transaction.get("is_inflow", None),  # None means auto-detect
+            "original_amount": float(transaction["amount"])  # Store original for reference
+        }
+        
+        # If is_inflow is manually set, respect that override
+        if transaction_doc["is_inflow"] is not None:
+            if transaction_doc["is_inflow"] and transaction_doc["amount"] > 0:
+                transaction_doc["amount"] = -abs(transaction_doc["amount"])
+            elif not transaction_doc["is_inflow"] and transaction_doc["amount"] < 0:
+                transaction_doc["amount"] = abs(transaction_doc["amount"])
+        
+        await db.transactions.insert_one(transaction_doc)
+        
+        return {"message": "Transaction created successfully", "id": transaction_doc["id"]}
+    except Exception as e:
+        logging.error(f"Error creating transaction: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/transactions", response_model=List[Transaction])
 async def get_transactions(
