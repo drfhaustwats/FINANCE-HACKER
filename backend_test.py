@@ -647,19 +647,24 @@ def test_google_oauth():
             
             if not is_google_url:
                 print(f"Google login redirected to non-Google URL: {redirect_url}")
+                return print_test_result("Google OAuth", False, 
+                                        response=login_response,
+                                        error=f"Google login redirected to non-Google URL: {redirect_url}")
+            else:
+                print(f"Google login redirected to: {redirect_url}")
         
         # Test callback endpoint - we can't fully test this without a valid OAuth code
         # but we can check if the endpoint exists
         callback_response = requests.get(f"{API_URL}/auth/google/callback?code=test_code&state=test_state")
         
         # The callback should either succeed or return an error about the invalid code
-        # but it shouldn't return a 404
-        callback_exists = callback_response.status_code != 404
+        # but it shouldn't return a 404 or 500
+        callback_exists = callback_response.status_code not in [404, 500]
         
         if not callback_exists:
             return print_test_result("Google OAuth", False, 
                                     response=callback_response,
-                                    error="Google callback endpoint not found (404)")
+                                    error=f"Google callback endpoint returned {callback_response.status_code}")
         
         # For testing purposes, we'll consider this a success if both endpoints exist
         success = login_redirect and callback_exists
