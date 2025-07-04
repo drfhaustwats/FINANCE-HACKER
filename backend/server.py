@@ -34,16 +34,7 @@ import string
 from authlib.integrations.starlette_client import OAuth
 import httpx
 # Initialize OAuth client
-oauth = OAuth()
-google_oauth = oauth.register(
-    name='google',
-    client_id=GOOGLE_CLIENT_ID,
-    client_secret=GOOGLE_CLIENT_SECRET,
-    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
-    client_kwargs={
-        'scope': 'openid email profile'
-    }
-)
+
 
 
 ROOT_DIR = Path(__file__).parent
@@ -68,6 +59,16 @@ GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
+oauth = OAuth()
+google_oauth = oauth.register(
+    name='google',
+    client_id=GOOGLE_CLIENT_ID,
+    client_secret=GOOGLE_CLIENT_SECRET,
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={
+        'scope': 'openid email profile'
+    }
+)
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
