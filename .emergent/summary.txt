@@ -1,51 +1,129 @@
 <analysis>
-The previous AI engineer successfully built a LifeTracker Banking Dashboard from scratch, focusing on manual data entry and basic visualizations. The main challenge involved robust PDF statement parsing, which required significant iteration to accurately extract transaction details, handle diverse date/amount formats (including a persistent date-1 offset and comma-separated amounts), and extract user-specific metadata. The engineer demonstrated strong debugging, addressing user-reported bugs and verifying fixes with tests. Recent efforts concentrated on resolving a date offset bug, fixing the monthly spending overview, addressing a persistent missing transaction (Lovisa), and implementing an inline category editing feature. The core issues centered on frontend date display (timezone), backend analytics data fetching (year mismatch), and finicky PDF line parsing. The category update API was implemented and debugged, but frontend integration was still problematic.
+The previous AI engineer effectively transformed the financial tracker into a multi-user application, starting from initial bug fixes like date offsets and Lovisa transaction parsing, moving to feature additions such as CIBC debit support, Excel export, and time-sensitive analytics. A major architectural change was implementing a JWT-based authentication and household system. The current work involved extensive debugging. Initially, the engineer fixed critical security vulnerabilities, including unauthenticated API access and improper  filtering in backend endpoints. Subsequently, features like forgot password, user profile management, and Google OAuth were implemented. The most recent and challenging phase focused on resolving persistent GitHub secret leakage issues and deployment-specific 404 errors on Railway, stemming from incorrect API routing and environment variable handling. The engineer sanitized files, cleaned git history, and provided detailed Railway configuration instructions, including a custom startup script for dual API prefix compatibility.
 </analysis>
-
 <product_requirements>
-The initial user requirement was a lifetracker to extract and visualize banking statement data for financial insights. The implemented product delivers an interactive dashboard for managing transactions, supporting manual data entry and categorization. Key features include automated PDF upload, text extraction, and robust parsing for transaction dates, post dates, descriptions, categories, and amounts, accurately handling date offsets and year inference. It extracts user names and statement periods from PDF headers, deduplicates transactions, and automatically filters out non-transactional entries like PAYMENT THANK YOU. The dashboard allows filtering by date range, category, and source filename, dynamic column sorting, and bulk selection/deletion of transactions. Smart categorization based on keywords is also implemented. The goal is to provide a production-ready system for accurate data extraction and financial management.
+The primary goal is to build a lifetracker for financial management. This involves parsing banking statements (both credit and debit PDFs), extracting transaction details (dates, descriptions, amounts), and user-specific metadata. Key functionalities include transaction deduplication, dynamic filtering (date, category, source), column sorting, and bulk actions. Smart categorization based on keywords and custom categories is crucial. The application must feature an interactive dashboard with monthly spending overviews and advanced analytics. Recent expansions include CIBC debit/credit format support, dynamic source naming, account type filtering, Excel export, and a secure multi-user system with authentication and household management, enabling families to manage finances individually or collectively. The system must also support features like forgot password, user profiles, and Google sign-up. Amount parsing needs to correctly handle negative values (credits).
 </product_requirements>
-
 <key_technical_concepts>
--   **React**: Frontend framework for UI.
+-   **React**: Frontend UI framework.
 -   **FastAPI**: Python backend API.
--   **MongoDB**: NoSQL database for transaction storage.
--   **Tailwind CSS**: Utility-first CSS for styling.
--   **PDF Parsing**:  and  for data extraction.
--   **Data Serialization**: Handling  for MongoDB.
+-   **MongoDB**: NoSQL database.
+-   **PDF Parsing**:  and .
+-   **JWT Authentication**: Secure user authentication (, ).
+-   **Bcrypt**: Password hashing ().
+-   **OAuth 2.0**: Google sign-in integration ().
+-   **SMTP**: Email sending for password reset ().
 -   **Environment Variables**: Secure configuration.
+-   **CORS**: Cross-Origin Resource Sharing.
 </key_technical_concepts>
-
 <code_architecture>
 
 
--   : This is the core backend logic. It defines FastAPI endpoints for all transaction CRUD operations, handles PDF uploads, parses banking statement data (using  and ), stores data in MongoDB, and provides filtered/sorted transaction lists. It also defines data models and includes logic for deduplication and metadata extraction.
-    -   **Changes Made**: Initial setup with FastAPI, PDF parsing iterations for dates, amounts, and filtering. Added  and  fields. API endpoints for filtering, source listing, bulk deletion, and a new  endpoint to update transaction categories. Extensive debugging and logging for parsing and API errors. Recent edits addressed  serialization and MongoDB ObjectId handling in the update endpoint.
--   : The main React component for the user interface. It renders the dashboard, transaction list, and controls for data import, filtering, sorting, and bulk actions. Manages state and interacts with the backend API.
-    -   **Changes Made**: Implemented PDF upload, UI components for filtering (date range, PDF source), sortable columns, bulk selection checkboxes, and a dynamic Delete Selected button. Updated  to pass filter/sort params. Recent changes include fixing the  function for timezone issues (displaying date correctly), correcting the year in the monthly overview API call (from 2025 to 2024), adding debugging logs, and attempting to implement inline category editing for transactions, which is still in progress.
--   : Manages Python dependencies for the backend.
-    -   **Changes Made**: Added , , ,  to support PDF parsing and data handling.
--   : Defines the visual appearance.
-    -   **Changes Made**: Initial styling setup using Tailwind patterns. No explicit functional changes detailed in the trajectory.
+-   : The core backend application, handling data processing, API, and authentication.
+    -   **Summary of why important**: Central to application logic, parsing, and data management.
+    -   **Changes made**: Fixed a critical security vulnerability by ensuring all endpoints requiring user data are authenticated with . Removed a legacy insecure  helper. Implemented password reset, user profile update, and Google OAuth endpoints. Enhanced PDF parsing to correctly handle negative amounts (credits) by checking for leading '-' signs. Added dual routing ( and ) for authentication endpoints to support Railway's ingress.
+-   : Main React component, dashboard UI.
+    -   **Summary of why important**: User interface and interaction with backend.
+    -   **Changes made**: Integrated , , and UI elements for account type filtering, Excel export, and analytics. (No direct changes in this trajectory, but previous work mentioned.)
+-   : Manages global authentication state.
+    -   **Summary of why important**: Provides authentication status and user data throughout the app.
+    -   **Changes made**: Initial creation and fixes to handle JWT tokens and user info (No direct changes in this trajectory, but previous work mentioned.)
+-   : Login UI component.
+    -   **Summary of why important**: Handles user login.
+    -   **Changes made**: Added Forgot Password link and Google OAuth button.
+-   : Toggles between login/register.
+    -   **Summary of why important**: Main entry point for authentication flow.
+    -   **Changes made**: Updated to handle navigation to the new  component.
+-   : New component.
+    -   **Summary of why important**: Allows users to request password reset emails.
+    -   **Changes made**: Created to provide forgot password functionality.
+-   : New component.
+    -   **Summary of why important**: Displays and allows editing of user profile information.
+    -   **Changes made**: Created for user profile management.
+-   : New component.
+    -   **Summary of why important**: Provides a button and logic for Google OAuth sign-in/registration.
+    -   **Changes made**: Created to integrate Google OAuth.
+-   : Python dependencies.
+    -   **Summary of why important**: Ensures correct backend environment.
+    -   **Changes made**: Added , , , , , , , and .
+-   , , : Environment configuration files.
+    -   **Summary of why important**: Manage sensitive credentials and configurations securely.
+    -   **Changes made**:  now contains placeholders.  was created to store actual secrets locally and is gitignored.  was also updated with new placeholder variables for new integrations.
+-   : Git ignored files list.
+    -   **Summary of why important**: Prevents sensitive files from being committed to source control.
+    -   **Changes made**: Added  to ensure local secrets are never committed.
+-   , , : Deployment guides and notes.
+    -   **Summary of why important**: Provide instructions for deploying and configuring the application, especially on Railway.
+    -   **Changes made**:  was created/updated with comprehensive Railway deployment steps.  was created to explain the routing fix for Railway.  was created for general environment setup. Secrets were removed from these documents.
+-   : New Python script.
+    -   **Summary of why important**: Provides a specific entry point for Railway deployment to handle port configuration.
+    -   **Changes made**: Created to run the FastAPI app on the  environment variable expected by Railway.
 </code_architecture>
-
 <pending_tasks>
--   **Full Multi-User Support**: Comprehensive multi-user system with separate dashboards and authentication.
--   **Excel Export Functionality**: Ability to export processed data to Excel.
--   **Advanced Analytics**: Budget tracking, spending predictions, complex trend analysis.
--   **Debit Card Format Integration**: Support for parsing a different debit card statement structure.
--   **Missing Lovisa Transaction**: Robustly fix the issue of specific transactions being missed during PDF parsing.
--   **Inline Category Editing (Frontend)**: Fully implement the clickable and editable category in the transaction table.
+-   **Create household management features**: While multi-user support is foundational, explicit create household functionality for collaborative family finance management is not yet developed.
 </pending_tasks>
-
 <current_work>
-The LifeTracker Banking Dashboard is functional but has outstanding bugs and partially implemented features. The application successfully extracts, stores, and displays banking transactions, supports PDF uploads, and offers filtering and sorting. Critical fixes include:
--   **Date Display**: The -1 day offset on the frontend for transaction dates has been resolved by correcting the  function in  to account for timezone conversions.
--   **Monthly Spending Overview**: The backend API for monthly reports () is confirmed to be working. The frontend issue was identified as a year mismatch (requesting 2025 data instead of 2024). The frontend was updated to request 2024 data, but the user still reports the Monthly Spending Overview is not populated.
--   **Missing Transactions**: A persistent issue with the Lovisa transaction from Account Statement 4.pdf being missed during parsing. Debugging confirmed it's not present in the database, suggesting a PDF text extraction or parsing robustness issue. Manual insertion of the transaction was successful, but automated parsing is still failing for specific edge cases.
--   **Inline Category Editing**: A  endpoint was added to  for updating transaction categories. This endpoint was debugged for MongoDB ObjectId serialization and is confirmed to be working for updates, despite a 404 response in testing. Frontend implementation to make categories clickable and editable in  is ongoing, with some refactoring and state management challenges (duplicate functions, linting errors) encountered and partially addressed, leading to a temporary UI breakage where the Transactions tab is not rendering.
-</current_work>
+The application now boasts a comprehensive multi-user system with robust authentication. The previous AI engineer diligently addressed critical security vulnerabilities, ensuring all user-specific data endpoints (, , , ) now properly enforce authentication and filter data by . A legacy, insecure  helper function that returned a default user ID was removed, and affected endpoints were updated to use the secure, dependency-injected .
 
+New features implemented include:
+1.  **Forgot Password**: Backend endpoints and frontend components are in place for initiating and resetting passwords via email (using Gmail SMTP).
+2.  **User Profile Page**: Backend endpoints and a frontend component () were created for managing user profiles.
+3.  **Gmail Signup (Google OAuth)**: Integrated Google OAuth for seamless user registration and login, involving both backend API routes and a new frontend component ().
+4.  **Enhanced PDF Parsing**: The  function in  was updated to correctly identify and process negative amounts (credits) in both credit and debit statements.
+
+The immediate focus has shifted to debugging deployment issues. Previously, 404 errors for authentication endpoints on Railway deployments were reported. This was initially complicated by GitHub's secret push protection due to sensitive credentials being committed to the repository history. The engineer addressed this by:
+*   Sanitizing all  files (moving real secrets to a  file that is git-ignored).
+*   Cleaning the git history to remove all traces of exposed secrets.
+*   Updating  and creating  with instructions for secure environment variable management on Railway.
+
+Despite these fixes, the 404 errors persisted on Railway for auth endpoints (, ). This was diagnosed as a routing mismatch where Railway expected  routes, while the backend was configured with . To resolve this, the backend  was modified to include dual routing for authentication endpoints, making them accessible via both  and . A new  script was created to ensure proper port handling on Railway. The current state is that all core features and security fixes are implemented, and the latest efforts are to make the deployment robust on Railway.
+</current_work>
 <optional_next_step>
-Investigate and fix the frontend rendering issue on the Transactions tab to complete the inline category editing feature.
+Verify Railway deployment for 404 errors by guiding the user to apply the provided Railway configuration (environment variables, build/start commands) and then testing the  and  endpoints.
+
+
+
+Excellent progress so far! For the next phase, here are the prioritized tasks to be completed:
+
+#### 1. Transaction Sign Handling
+
+* Clearly differentiate transaction signs:
+
+  * **Credit Cards:** Negative (-) indicates inflow, no sign indicates outflow.
+  * **Debit Cards:** Maintain separate columns clearly distinguishing inflow and outflow transactions.
+
+#### 2. Customizable Visualizations
+
+* Develop various customizable visualizations that users can add and personalize on their analytics dashboard, similar to Excel.
+* Include pre-designed visualization presets and ready-made templates.
+
+#### 3. UI Enhancement: Transactions Page
+
+* Initially hide the filter and search section on the Transactions page.
+* Reveal the filter/search area only upon the user's click or interaction.
+
+#### 4. Optimize Data Columns
+
+* Remove redundancy between the Type and Source columns:
+
+  * Currently, both columns indicate whether a transaction is credit or debit.
+  * Consolidate or optimize these columns to eliminate redundancy and enhance clarity.
+
+#### 5. Household Feature Implementation
+
+* Implement the  feature:
+
+  * Allow creation of combined visualizations across two or more users within a household.
+
+#### 6. Auto Logout Feature
+
+* Add an auto logout mechanism:**he settings page.**
+* **Default timeout should be set to 10 minutes.**
+
+#### **7. Google OAuth Bug Fix**
+
+* **Investigate and resolve the Internal Server Error occurring on the Google Sign-in page.**
+
+**Ensure these improvements and fixes are comprehensively addressed in the upcoming development phase.**
+
 </optional_next_step>
