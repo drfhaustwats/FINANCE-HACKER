@@ -33,18 +33,6 @@ import random
 import string
 from authlib.integrations.starlette_client import OAuth
 import httpx
-# Initialize OAuth client
-oauth = OAuth()
-google_oauth = oauth.register(
-    name='google',
-    client_id=GOOGLE_CLIENT_ID,
-    client_secret=GOOGLE_CLIENT_SECRET,
-    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
-    client_kwargs={
-        'scope': 'openid email profile'
-    }
-)
-
 
 ROOT_DIR = Path(__file__).parent
 # Load environment variables - prefer .env.local for development
@@ -72,18 +60,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
-# Initialize OAuth client
-oauth = OAuth()
-google_oauth = oauth.register(
-    name='google',
-    client_id=GOOGLE_CLIENT_ID,
-    client_secret=GOOGLE_CLIENT_SECRET,
-    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
-    client_kwargs={
-        'scope': 'openid email profile'
-    }
-)
-
 
 # Create the main app without a prefix
 app = FastAPI()
