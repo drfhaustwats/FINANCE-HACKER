@@ -5,6 +5,9 @@ import { AuthProvider, useAuth } from './AuthContext';
 import AuthPage from './components/AuthPage';
 import UserHeader from './components/UserHeader';
 import LoadingScreen from './components/LoadingScreen';
+import AdvancedFilters from './components/AdvancedFilters';
+import OptimizedTransactionTable from './components/OptimizedTransactionTable';
+import AnalyticsDashboard from './components/AnalyticsDashboard';
 
 // Main Dashboard Component (wrapped with authentication)
 function Dashboard() {
