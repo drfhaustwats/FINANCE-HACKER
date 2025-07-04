@@ -883,7 +883,8 @@ def run_all_tests():
         "Forgot Password": test_forgot_password(),
         "User Profile Management": test_user_profile_management(),
         "Google OAuth": test_google_oauth(),
-        "Enhanced PDF Parsing": test_enhanced_pdf_parsing()
+        "Enhanced PDF Parsing": test_enhanced_pdf_parsing(),
+        "Transaction Sign Handling": test_transaction_sign_handling()
     }
     
     print("\n" + "=" * 40)
