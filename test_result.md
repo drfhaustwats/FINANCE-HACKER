@@ -18,7 +18,7 @@
 ## backend:
 ##   - task: "Task name"
 ##     implemented: true
-##     working: true  # or false or "NA"
+##     working: false  # or false or "NA"
 ##     file: "file_path.py"
 ##     stuck_count: 0
 ##     priority: "high"  # or "medium" or "low"
@@ -204,6 +204,9 @@ backend:
         agent: "main"
         comment: "INVESTIGATION: User reported 'Internal Server Error' on Google Sign-in page. Backend logs show '500 Internal Server Error' for /api/auth/google/login endpoint. Found Google OAuth credentials are properly configured in .env.local file. Issue appears to be in OAuth client configuration or redirect URI setup. Need to test OAuth endpoints and debug the 500 error."
 
+      - working: false
+        agent: "testing"
+        comment: "The Google OAuth integration is not working correctly. The /api/auth/google/login endpoint returns a 500 Internal Server Error. The issue is related to the OAuth client configuration. The server.py file has a duplicate router registration for auth_router, which is causing routing conflicts. Additionally, there are issues with how the environment variables for Google OAuth credentials are being accessed. The fix would involve removing the duplicate router registration and ensuring the OAuth client is properly configured with the correct credentials."
   - task: "Root API endpoint"
     implemented: true
     working: true
