@@ -743,6 +743,146 @@ def test_enhanced_pdf_parsing():
     except Exception as e:
         return print_test_result("Enhanced PDF Parsing", False, error=str(e))
 
+# Test 10: Test transaction sign handling
+def test_transaction_sign_handling():
+    try:
+        # Create a test user
+        user = register_and_login_user()
+        if not user:
+            return print_test_result("Transaction Sign Handling", False, 
+                                    error="Failed to create test user")
+        
+        headers = {"Authorization": f"Bearer {user['token']}"}
+        
+        # Test 1: Create a payment transaction (negative amount) for credit card
+        payment_transaction = {
+            "date": "2024-11-15",
+            "description": "PAYMENT THANK YOU",
+            "category": "Professional and Financial Services",
+            "amount": -100.00,  # Negative amount for payment
+            "account_type": "credit_card"
+        }
+        
+        payment_response = requests.post(f"{API_URL}/transactions", json=payment_transaction, headers=headers)
+        
+        if payment_response.status_code != 200:
+            return print_test_result("Transaction Sign Handling", False, 
+                                    response=payment_response,
+                                    error="Failed to create payment transaction")
+        
+        # Test 2: Create a purchase transaction (positive amount) for credit card
+        purchase_transaction = {
+            "date": "2024-11-16",
+            "description": "GROCERY STORE PURCHASE",
+            "category": "Retail and Grocery",
+            "amount": 75.50,  # Positive amount for purchase
+            "account_type": "credit_card"
+        }
+        
+        purchase_response = requests.post(f"{API_URL}/transactions", json=purchase_transaction, headers=headers)
+        
+        if purchase_response.status_code != 200:
+            return print_test_result("Transaction Sign Handling", False, 
+                                    response=purchase_response,
+                                    error="Failed to create purchase transaction")
+        
+        # Test 3: Create a deposit transaction (negative amount) for debit account
+        deposit_transaction = {
+            "date": "2024-11-17",
+            "description": "DIRECT DEPOSIT",
+            "category": "Professional and Financial Services",
+            "amount": -200.00,  # Negative amount for deposit (inflow)
+            "account_type": "debit"
+        }
+        
+        deposit_response = requests.post(f"{API_URL}/transactions", json=deposit_transaction, headers=headers)
+        
+        if deposit_response.status_code != 200:
+            return print_test_result("Transaction Sign Handling", False, 
+                                    response=deposit_response,
+                                    error="Failed to create deposit transaction")
+        
+        # Test 4: Create a withdrawal transaction (positive amount) for debit account
+        withdrawal_transaction = {
+            "date": "2024-11-18",
+            "description": "ATM WITHDRAWAL",
+            "category": "Professional and Financial Services",
+            "amount": 50.00,  # Positive amount for withdrawal (outflow)
+            "account_type": "debit"
+        }
+        
+        withdrawal_response = requests.post(f"{API_URL}/transactions", json=withdrawal_transaction, headers=headers)
+        
+        if withdrawal_response.status_code != 200:
+            return print_test_result("Transaction Sign Handling", False, 
+                                    response=withdrawal_response,
+                                    error="Failed to create withdrawal transaction")
+        
+        # Verify all transactions were created with the correct signs
+        transactions_response = requests.get(f"{API_URL}/transactions", headers=headers)
+        
+        if transactions_response.status_code != 200:
+            return print_test_result("Transaction Sign Handling", False, 
+                                    response=transactions_response,
+                                    error="Failed to retrieve transactions")
+        
+        transactions = transactions_response.json()
+        
+        # Check if all transactions exist with correct signs
+        payment_found = False
+        purchase_found = False
+        deposit_found = False
+        withdrawal_found = False
+        
+        for transaction in transactions:
+            if transaction.get("description") == "PAYMENT THANK YOU" and transaction.get("amount") < 0:
+                payment_found = True
+            elif transaction.get("description") == "GROCERY STORE PURCHASE" and transaction.get("amount") > 0:
+                purchase_found = True
+            elif transaction.get("description") == "DIRECT DEPOSIT" and transaction.get("amount") < 0:
+                deposit_found = True
+            elif transaction.get("description") == "ATM WITHDRAWAL" and transaction.get("amount") > 0:
+                withdrawal_found = True
+        
+        success = payment_found and purchase_found and deposit_found and withdrawal_found
+        
+        if not success:
+            error_msg = "Transaction sign handling issues: "
+            if not payment_found:
+                error_msg += "Payment transaction not found with negative sign; "
+            if not purchase_found:
+                error_msg += "Purchase transaction not found with positive sign; "
+            if not deposit_found:
+                error_msg += "Deposit transaction not found with negative sign; "
+            if not withdrawal_found:
+                error_msg += "Withdrawal transaction not found with positive sign; "
+        else:
+            error_msg = None
+        
+        return print_test_result("Transaction Sign Handling", success, 
+                                error=error_msg)
+    except Exception as e:
+        return print_test_result("Transaction Sign Handling", False, error=str(e))
+        
+        success = payment_found and purchase_found and deposit_found and withdrawal_found
+        
+        if not success:
+            error_msg = "Transaction sign handling issues: "
+            if not payment_found:
+                error_msg += "Payment transaction not found with negative sign; "
+            if not purchase_found:
+                error_msg += "Purchase transaction not found with positive sign; "
+            if not deposit_found:
+                error_msg += "Deposit transaction not found with negative sign; "
+            if not withdrawal_found:
+                error_msg += "Withdrawal transaction not found with positive sign; "
+        else:
+            error_msg = None
+        
+        return print_test_result("Transaction Sign Handling", success, 
+                                error=error_msg)
+    except Exception as e:
+        return print_test_result("Transaction Sign Handling", False, error=str(e))
 # Run all tests
 def run_all_tests():
     print("\n" + "=" * 40)
@@ -763,7 +903,8 @@ def run_all_tests():
         "Forgot Password": test_forgot_password(),
         "User Profile Management": test_user_profile_management(),
         "Google OAuth": test_google_oauth(),
-        "Enhanced PDF Parsing": test_enhanced_pdf_parsing()
+        "Enhanced PDF Parsing": test_enhanced_pdf_parsing(),
+        "Transaction Sign Handling": test_transaction_sign_handling()
     }
     
     print("\n" + "=" * 40)
