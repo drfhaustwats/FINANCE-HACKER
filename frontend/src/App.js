@@ -186,6 +186,21 @@ function Dashboard() {
     setTempTransactionCategory('');
   };
 
+  const handleSaveCategoryEdit = async (transactionId) => {
+    try {
+      await axios.put(`${API}/transactions/${transactionId}`, {
+        category: tempTransactionCategory
+      });
+      
+      setEditingTransactionId(null);
+      setTempTransactionCategory('');
+      fetchData(); // Refresh data to show the updated category
+    } catch (error) {
+      console.error('Error updating category:', error);
+      alert('Failed to update category. Please try again.');
+    }
+  };
+
   const handleUpdateTransaction = async (transactionId, updateData) => {
     try {
       await axios.put(`${API}/transactions/${transactionId}`, updateData);
