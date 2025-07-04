@@ -863,6 +863,26 @@ def test_transaction_sign_handling():
                                 error=error_msg)
     except Exception as e:
         return print_test_result("Transaction Sign Handling", False, error=str(e))
+        
+        success = payment_found and purchase_found and deposit_found and withdrawal_found
+        
+        if not success:
+            error_msg = "Transaction sign handling issues: "
+            if not payment_found:
+                error_msg += "Payment transaction not found with negative sign; "
+            if not purchase_found:
+                error_msg += "Purchase transaction not found with positive sign; "
+            if not deposit_found:
+                error_msg += "Deposit transaction not found with negative sign; "
+            if not withdrawal_found:
+                error_msg += "Withdrawal transaction not found with positive sign; "
+        else:
+            error_msg = None
+        
+        return print_test_result("Transaction Sign Handling", success, 
+                                error=error_msg)
+    except Exception as e:
+        return print_test_result("Transaction Sign Handling", False, error=str(e))
 # Run all tests
 def run_all_tests():
     print("\n" + "=" * 40)
