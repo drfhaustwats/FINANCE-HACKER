@@ -223,8 +223,8 @@ backend:
         agent: "main"
         comment: "Need to enhance transaction sign handling for better credit/debit distinction. Credit Cards: Negative (-) = inflow, positive = outflow. Debit Cards: Maintain clear inflow/outflow distinction. Test with CIBC statement provided."
       - working: true
-        agent: "main"
-        comment: "COMPLETED: Enhanced transaction sign handling with proper credit/debit distinction. For Credit Cards: Payment transactions (like 'PAYMENT THANK YOU') are now correctly identified and stored as negative (inflow), while regular charges remain positive (outflow). For Debit Cards: Improved logic to distinguish deposits/credits from withdrawals based on transaction type keywords and column positions. Successfully tested with CIBC statement - payment transaction now correctly shows as inflow ($1085.99) and all other transactions as outflows."
+        agent: "testing"
+        comment: "Verified that the transaction sign handling is working correctly. For credit cards: Payment transactions (like 'PAYMENT THANK YOU') are correctly stored as negative amounts (inflows), while regular purchases are stored as positive amounts (outflows). For debit accounts: Deposits are correctly stored as negative amounts (inflows), while withdrawals are stored as positive amounts (outflows). The system properly maintains the sign convention across different account types."
   - task: "Root API endpoint"
     implemented: true
     working: true
