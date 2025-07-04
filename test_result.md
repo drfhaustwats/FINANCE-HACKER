@@ -555,11 +555,10 @@ metadata:
 
 test_plan:
   current_focus:
-    - "User data segmentation verification"
-    - "Forgot password functionality"
-    - "User profile management"
-    - "Data extraction enhancement"
     - "Google OAuth integration"
+    - "Transaction Sign Handling Enhancement"
+    - "UI/UX Improvements"
+    - "Customizable Analytics Dashboard"
   stuck_tasks: []
   test_all: false
   test_priority: "critical_first"
