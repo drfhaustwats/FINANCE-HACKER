@@ -18,7 +18,7 @@
 ## backend:
 ##   - task: "Task name"
 ##     implemented: true
-##     working: true  # or false or "NA"
+##     working: false  # or false or "NA"
 ##     file: "file_path.py"
 ##     stuck_count: 0
 ##     priority: "high"  # or "medium" or "low"
@@ -184,8 +184,8 @@ backend:
     implemented: true
     working: true
     file: "/app/backend/server.py"
-    stuck_count: 1
-    priority: "medium"
+    stuck_count: 2
+    priority: "high"
     needs_retesting: false
     status_history:
       - working: "NA"
@@ -200,7 +200,31 @@ backend:
       - working: true
         agent: "testing"
         comment: "The Google OAuth integration is now working correctly. The endpoints are accessible at /api/auth/google/login and /api/auth/google/callback. The OAuth flow is properly configured with the provided Google credentials. The login endpoint redirects to Google for authentication, and the callback endpoint processes the OAuth response and creates/updates the user account."
+      - working: false
+        agent: "main"
+        comment: "INVESTIGATION: User reported 'Internal Server Error' on Google Sign-in page. Backend logs show '500 Internal Server Error' for /api/auth/google/login endpoint. Found Google OAuth credentials are properly configured in .env.local file. Issue appears to be in OAuth client configuration or redirect URI setup. Need to test OAuth endpoints and debug the 500 error."
 
+      - working: false
+        agent: "testing"
+        comment: "The Google OAuth integration is not working correctly. The /api/auth/google/login endpoint returns a 500 Internal Server Error. The issue is related to the OAuth client configuration. The server.py file has a duplicate router registration for auth_router, which is causing routing conflicts. Additionally, there are issues with how the environment variables for Google OAuth credentials are being accessed. The fix would involve removing the duplicate router registration and ensuring the OAuth client is properly configured with the correct credentials."
+      - working: true
+        agent: "testing"
+        comment: "The Google OAuth integration is now working correctly. The issue was with how the environment variables were being loaded. The code was trying to access GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET from the environment, but they were only defined in the .env.local file. Modified the code to read these credentials directly from the .env.local file, which fixed the issue. The /api/auth/google/login endpoint now correctly redirects to Google's authentication page, and the /api/auth/google/callback endpoint properly handles the OAuth response."
+
+  - task: "Transaction Sign Handling Enhancement"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Need to enhance transaction sign handling for better credit/debit distinction. Credit Cards: Negative (-) = inflow, positive = outflow. Debit Cards: Maintain clear inflow/outflow distinction. Test with CIBC statement provided."
+      - working: true
+        agent: "main"
+        comment: "COMPLETED: Enhanced transaction sign handling with proper credit/debit distinction. For Credit Cards: Payment transactions (like 'PAYMENT THANK YOU') are now correctly identified and stored as negative (inflow), while regular charges remain positive (outflow). For Debit Cards: Improved logic to distinguish deposits/credits from withdrawals based on transaction type keywords and column positions. Successfully tested with CIBC statement - payment transaction now correctly shows as inflow ($1085.99) and all other transactions as outflows."
   - task: "Root API endpoint"
     implemented: true
     working: true
@@ -552,11 +576,8 @@ metadata:
 
 test_plan:
   current_focus:
-    - "User data segmentation verification"
-    - "Forgot password functionality"
-    - "User profile management"
-    - "Data extraction enhancement"
-    - "Google OAuth integration"
+    - "UI/UX Improvements"
+    - "Customizable Analytics Dashboard"
   stuck_tasks: []
   test_all: false
   test_priority: "critical_first"
@@ -590,9 +611,7 @@ agent_communication:
     message: "Starting Phase 1 investigation. User confirmed category editing is working from their testing. User has provided CIBC credit card statements showing Lovisa transaction missing from parsing. Need to investigate CIBC PDF parsing robustness and ensure all transactions are captured correctly. Focus on improving PDF parsing for CIBC format specifically."
   - agent: "testing"
     message: "Completed comprehensive testing of the backend API with focus on the PDF transaction extraction completeness issue. Found that the Lovisa transaction is now present in the database with ID f424fe25-3622-4c79-90c7-0104a134f629, date 2024-10-13, and amount $29.39. Created a test PDF with the same format as the CIBC statement and verified that the transaction was successfully extracted. All backend API endpoints are working correctly, including the monthly report analytics which returns data for all three months (2024-09, 2024-10, 2024-11) when queried with year=2024. The PDF parsing logic appears to be working correctly now."
+  - agent: "main"
+    message: "Starting Phase 2 development with 4 priority items: 1) Fix Google OAuth Internal Server Error - backend logs show 500 error for /auth/google/login endpoint despite having valid credentials, 2) Transaction Sign Handling Enhancement for better credit/debit distinction, 3) UI/UX improvements including hidden filter sections and column optimization, 4) Customizable Analytics Dashboard development. Currently investigating Google OAuth 500 error - credentials are present in .env.local but OAuth client configuration may have issues."
   - agent: "testing"
-    message: "Completed thorough testing of the Lovisa transaction parsing fix. The word boundary fix for header detection is working correctly. Created a test PDF with transactions containing 'VISA' as a substring (like 'LOVISA', 'ADVISATECH', 'REVISAGE') and confirmed they are correctly parsed, while actual VISA headers are still properly skipped. Also verified that the transaction update API works correctly with custom categories - successfully updated the Lovisa transaction's category and confirmed the change was persisted. All 16 transactions from the CIBC PDF are now being correctly parsed and stored in the database."
-  - agent: "testing"
-    message: "Completed testing of user data segmentation. Found critical security issues: 1) Categories endpoint does not filter by user_id, allowing users to see other users' categories. 2) Monthly report analytics endpoint does not filter by user_id, showing data from all users. 3) Category breakdown analytics endpoint does not filter by user_id, showing data from all users. 4) None of the endpoints require authentication, allowing anyone to access any user's data. The transactions endpoint appears to be filtering correctly when user_id is provided as a query parameter."
-  - agent: "testing"
-    message: "Completed comprehensive testing of all security fixes and new features. All tests are now passing. The routing issue with the auth_router has been fixed by adding the /api prefix. The user data segmentation is working correctly - users can only see their own data. The forgot password functionality, user profile management, and Google OAuth integration are all working correctly. The enhanced PDF parsing for negative amounts is also working as expected. All endpoints properly require authentication and filter data by user."
+    message: "Completed testing of the Google OAuth integration. The issue was with how the environment variables were being loaded. The code was trying to access GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET from the environment, but they were only defined in the .env.local file. Modified the code to read these credentials directly from the .env.local file, which fixed the issue. The /api/auth/google/login endpoint now correctly redirects to Google's authentication page, and the /api/auth/google/callback endpoint properly handles the OAuth response. All tests are now passing, including the Google OAuth test."

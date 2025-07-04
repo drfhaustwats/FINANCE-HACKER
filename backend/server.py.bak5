@@ -560,70 +560,40 @@ def parse_cibc_debit_transactions(text: str, user_id: str, source_filename: str,
             line_without_balance = remaining_line[:balance_match.start()].strip()
             
             # Look for withdrawal or deposit amount before balance
-            # Enhanced logic to differentiate between withdrawal and deposit columns
+            amount_pattern = r'(\d+\.\d{2})\s+(\d+\.\d{2})?'
             amounts = re.findall(r'(\d+\.\d{2})', line_without_balance)
             
             if not amounts:
                 continue
+                
+            # The transaction amount is typically the first amount found
+            # Enhanced to handle negative amounts and credits
+            amount_str = amounts[0].strip()
             
-            # Extract description first to determine transaction type
-            desc_parts = line_without_balance.split()
-            description_parts = []
-            amount_positions = []
+            # Check for negative sign (indicates credit/deposit)
+            is_credit = False
+            if amount_str.startswith('-') or amount_str.startswith('('):
+                is_credit = True
+                amount_str = amount_str.replace('-', '').replace('(', '').replace(')', '').strip()
             
-            # Find positions of amounts in the line
-            for amount in amounts:
-                pos = line_without_balance.find(amount)
-                if pos != -1:
-                    amount_positions.append(pos)
+            transaction_amount = float(amount_str)
             
-            # Extract description (words before the first amount)
-            if amount_positions:
-                first_amount_pos = min(amount_positions)
-                description = line_without_balance[:first_amount_pos].strip()
+            # For debit accounts: negative usually means deposit/credit, positive means withdrawal/debit
+            if is_credit:
+                transaction_amount = -transaction_amount
+                print(f"💳 DEBIT CREDIT/DEPOSIT detected: ${abs(transaction_amount)} (stored as negative)")
             else:
-                description = line_without_balance.strip()
+                print(f"💰 DEBIT WITHDRAWAL detected: ${transaction_amount} (stored as positive)")
             
-            # Determine transaction type based on description keywords
-            deposit_keywords = ['deposit', 'payroll', 'salary', 'refund', 'credit', 'transfer in', 'interest']
-            withdrawal_keywords = ['withdrawal', 'purchase', 'payment', 'fee', 'charge', 'debit', 'atm', 'pos']
-            
-            is_deposit = any(keyword in description.lower() for keyword in deposit_keywords)
-            is_withdrawal = any(keyword in description.lower() for keyword in withdrawal_keywords)
-            
-            # If we have multiple amounts, try to determine which column represents what
-            if len(amounts) >= 2:
-                # Assume format: Description | Withdrawals | Deposits | Balance
-                # If it's clearly a deposit, use the second amount; otherwise use the first
-                if is_deposit:
-                    transaction_amount = float(amounts[1])  # Deposit column
-                    transaction_amount = -transaction_amount  # Deposits are negative (inflow)
-                    print(f"💳 DEBIT DEPOSIT detected: ${abs(transaction_amount)} (stored as negative)")
-                else:
-                    transaction_amount = float(amounts[0])  # Withdrawal column
-                    print(f"💰 DEBIT WITHDRAWAL detected: ${transaction_amount} (stored as positive)")
-            else:
-                # Single amount - determine based on description
-                amount_str = amounts[0].strip()
+            # Extract description (everything between date and amounts)
+            desc_end_pos = line_without_balance.rfind(amounts[0])
+            if desc_end_pos == -1:
+                continue
                 
-                # Check for explicit negative sign (indicates credit/deposit)
-                is_credit = False
-                if amount_str.startswith('-') or amount_str.startswith('('):
-                    is_credit = True
-                    amount_str = amount_str.replace('-', '').replace('(', '').replace(')', '').strip()
-                
-                transaction_amount = float(amount_str)
-                
-                # Apply transaction type logic
-                if is_credit or is_deposit:
-                    transaction_amount = -transaction_amount
-                    print(f"💳 DEBIT CREDIT/DEPOSIT detected: ${abs(transaction_amount)} (stored as negative)")
-                else:
-                    print(f"💰 DEBIT WITHDRAWAL detected: ${transaction_amount} (stored as positive)")
+            description = line_without_balance[:desc_end_pos].strip()
             
-            # Extract description (everything between date and amounts) - already extracted above
             # Clean up description
-            description = re.sub(r'\s+', ' ', description.strip())
+            description = re.sub(r'\s+', ' ', description)
             
             # Skip if description is too short or looks like header
             if len(description) < 5:
@@ -775,7 +745,15 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                         # Clean up the description and category part
                         desc_and_cat = description_and_category.strip()
                         
-                        # Try to identify where description ends and category begins first
+                        # Skip payment transactions - these are not expenses
+                        if any(payment_keyword in desc_and_cat.upper() for payment_keyword in [
+                            'PAYMENT THANK YOU', 'PAIEMENT MERCI', 'PAYMENT - THANK YOU', 
+                            'THANK YOU FOR YOUR PAYMENT', 'PAYMENT RECEIVED'
+                        ]):
+                            print(f"SKIPPED PAYMENT: {desc_and_cat}")
+                            continue
+                        
+                        # Try to identify where description ends and category begins
                         category_str = ""
                         description = desc_and_cat
                         
@@ -807,23 +785,8 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                                 description = parts[0].strip()
                                 category_str = ' '.join(parts[1:]).strip()
                         
-                        # Check if this is a payment transaction - these should be treated as inflows
-                        payment_keywords = [
-                            'PAYMENT THANK YOU', 'PAIEMENT MERCI', 'PAYMENT - THANK YOU', 
-                            'THANK YOU FOR YOUR PAYMENT', 'PAYMENT RECEIVED', 'PAIEMENT',
-                            'PAYMENT/PAIEMENT', 'CREDIT CARD PAYMENT'
-                        ]
-                        
-                        is_payment = any(payment_keyword in desc_and_cat.upper() for payment_keyword in payment_keywords)
-                        
-                        if is_payment:
-                            # For credit cards: payments should be treated as negative (inflow)
-                            print(f"💳 PAYMENT DETECTED: Converting ${clean_amount_str} to inflow (negative)")
-                            transaction_match = (trans_date_str, post_date_str, description, category_str, f"-{clean_amount_str}")
-                            print(f"PAYMENT CONVERTED: Date={trans_date_str}, Desc='{description}', Cat='{category_str}', Amt=-{clean_amount_str}")
-                        else:
-                            transaction_match = (trans_date_str, post_date_str, description, category_str, clean_amount_str)
-                            print(f"EXTRACTED: Date={trans_date_str}, Desc='{description}', Cat='{category_str}', Amt={clean_amount_str} (original: {amount_str})")
+                        transaction_match = (trans_date_str, post_date_str, description, category_str, clean_amount_str)
+                        print(f"EXTRACTED: Date={trans_date_str}, Desc='{description}', Cat='{category_str}', Amt={clean_amount_str} (original: {amount_str})")
                     else:
                         print(f"Could not extract dates from: {line_without_amount}")
                 
@@ -2102,111 +2065,32 @@ async def change_password(
 # Google OAuth Endpoints
 @auth_router.get("/google/login")
 async def google_login(request: Request):
-    try:
-        # Load environment variables directly from .env.local
-        google_client_id = None
-        google_client_secret = None
-        
-        # Try to read from .env.local first
-        env_local_path = ROOT_DIR / '.env.local'
-        if env_local_path.exists():
-            with open(env_local_path, 'r') as f:
-                for line in f:
-                    if line.strip().startswith('GOOGLE_CLIENT_ID='):
-                        google_client_id = line.strip().split('=', 1)[1].strip('"\'')
-                    elif line.strip().startswith('GOOGLE_CLIENT_SECRET='):
-                        google_client_secret = line.strip().split('=', 1)[1].strip('"\'')
-        
-        # If not found, try environment variables
-        if not google_client_id:
-            google_client_id = os.environ.get("GOOGLE_CLIENT_ID")
-        if not google_client_secret:
-            google_client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
-        
-        # Validate OAuth configuration
-        if not google_client_id or not google_client_secret:
-            logging.error("Google OAuth credentials not found in .env.local or environment variables")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Google OAuth not configured"
-            )
-        
-        # Log OAuth attempt
-        logging.info(f"Google OAuth login attempt - Client ID: {google_client_id[:10]}...")
-        
-        # Create OAuth config
-        oauth = OAuth()
-        google = oauth.register(
-            name='google',
-            client_id=google_client_id,
-            client_secret=google_client_secret,
-            server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
-            client_kwargs={
-                'scope': 'openid email profile'
-            }
-        )
-        
-        # Build redirect URI - handle both local and deployed environments
-        base_url = str(request.base_url).rstrip('/')
-        if 'localhost' in base_url or '127.0.0.1' in base_url:
-            redirect_uri = f"{base_url}/api/auth/google/callback"
-        else:
-            # For production deployments, use the API prefix
-            redirect_uri = f"{base_url}/api/auth/google/callback"
-        
-        logging.info(f"Google OAuth redirect URI: {redirect_uri}")
-        
-        return await google.authorize_redirect(request, redirect_uri)
-        
-    except Exception as e:
-        logging.error(f"Google OAuth login error: {e}")
-        import traceback
-        logging.error(traceback.format_exc())
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Google OAuth login failed: {str(e)}"
-        )
+    # Create OAuth config
+    oauth = OAuth()
+    google = oauth.register(
+        name='google',
+        client_id=GOOGLE_CLIENT_ID,
+        client_secret=GOOGLE_CLIENT_SECRET,
+        server_metadata_url='https://accounts.google.com/.well-known/openid_configuration',
+        client_kwargs={
+            'scope': 'openid email profile'
+        }
+    )
+    
+    # Build redirect URI
+    redirect_uri = f"{str(request.base_url).rstrip('/')}/auth/google/callback"
+    return await google.authorize_redirect(request, redirect_uri)
 
 @auth_router.get("/google/callback")
 async def google_callback(request: Request):
     try:
-        # Load environment variables directly from .env.local
-        google_client_id = None
-        google_client_secret = None
-        
-        # Try to read from .env.local first
-        env_local_path = ROOT_DIR / '.env.local'
-        if env_local_path.exists():
-            with open(env_local_path, 'r') as f:
-                for line in f:
-                    if line.strip().startswith('GOOGLE_CLIENT_ID='):
-                        google_client_id = line.strip().split('=', 1)[1].strip('"\'')
-                    elif line.strip().startswith('GOOGLE_CLIENT_SECRET='):
-                        google_client_secret = line.strip().split('=', 1)[1].strip('"\'')
-        
-        # If not found, try environment variables
-        if not google_client_id:
-            google_client_id = os.environ.get("GOOGLE_CLIENT_ID")
-        if not google_client_secret:
-            google_client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
-        
-        # Validate OAuth configuration
-        if not google_client_id or not google_client_secret:
-            logging.error("Google OAuth credentials not found in .env.local or environment variables")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Google OAuth not configured"
-            )
-        
-        logging.info("Google OAuth callback received")
-        
         # Create OAuth config
         oauth = OAuth()
         google = oauth.register(
             name='google',
-            client_id=google_client_id,
-            client_secret=google_client_secret,
-            server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+            client_id=GOOGLE_CLIENT_ID,
+            client_secret=GOOGLE_CLIENT_SECRET,
+            server_metadata_url='https://accounts.google.com/.well-known/openid_configuration',
             client_kwargs={
                 'scope': 'openid email profile'
             }
@@ -2225,8 +2109,6 @@ async def google_callback(request: Request):
         email = user_info['email']
         full_name = user_info.get('name', '')
         username = email.split('@')[0]
-        
-        logging.info(f"Google OAuth user: {email}")
         
         # Check if user exists
         existing_user = await get_user_by_email(email)
@@ -2259,9 +2141,6 @@ async def google_callback(request: Request):
             
             await db.users.insert_one(user_doc)
             user_data = user_doc
-            
-            # Initialize default categories for new user
-            await initialize_default_categories(user_data["id"])
         
         # Create JWT token
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -2273,17 +2152,13 @@ async def google_callback(request: Request):
         frontend_url = os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:3000').replace('/api', '').replace(':8001', ':3000')
         redirect_url = f"{frontend_url}?token={access_token}"
         
-        logging.info(f"Google OAuth success - redirecting to: {frontend_url}")
-        
         return {"redirect_url": redirect_url, "access_token": access_token, "token_type": "bearer"}
         
     except Exception as e:
         logging.error(f"Google OAuth callback error: {e}")
-        import traceback
-        logging.error(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"OAuth authentication failed: {str(e)}"
+            detail="OAuth authentication failed"
         )
 
 # Legacy endpoint for backward compatibility (will be removed later)
@@ -2294,6 +2169,9 @@ async def get_current_user_id_legacy():
 # Include both routers in the main app
 app.include_router(api_router)
 app.include_router(auth_router, prefix="/api")
+
+# RAILWAY COMPATIBILITY: Also include auth router without /api prefix for direct access
+app.include_router(auth_router)
 
 app.add_middleware(
     CORSMiddleware,
