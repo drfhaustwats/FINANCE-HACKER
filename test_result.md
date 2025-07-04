@@ -200,6 +200,9 @@ backend:
       - working: true
         agent: "testing"
         comment: "The Google OAuth integration is now working correctly. The endpoints are accessible at /api/auth/google/login and /api/auth/google/callback. The OAuth flow is properly configured with the provided Google credentials. The login endpoint redirects to Google for authentication, and the callback endpoint processes the OAuth response and creates/updates the user account."
+      - working: false
+        agent: "main"
+        comment: "INVESTIGATION: User reported 'Internal Server Error' on Google Sign-in page. Backend logs show '500 Internal Server Error' for /api/auth/google/login endpoint. Found Google OAuth credentials are properly configured in .env.local file. Issue appears to be in OAuth client configuration or redirect URI setup. Need to test OAuth endpoints and debug the 500 error."
 
   - task: "Root API endpoint"
     implemented: true
