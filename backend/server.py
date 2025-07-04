@@ -621,15 +621,9 @@ def parse_cibc_debit_transactions(text: str, user_id: str, source_filename: str,
                 else:
                     print(f"💰 DEBIT WITHDRAWAL detected: ${transaction_amount} (stored as positive)")
             
-            # Extract description (everything between date and amounts)
-            desc_end_pos = line_without_balance.rfind(amounts[0])
-            if desc_end_pos == -1:
-                continue
-                
-            description = line_without_balance[:desc_end_pos].strip()
-            
+            # Extract description (everything between date and amounts) - already extracted above
             # Clean up description
-            description = re.sub(r'\s+', ' ', description)
+            description = re.sub(r'\s+', ' ', description.strip())
             
             # Skip if description is too short or looks like header
             if len(description) < 5:
