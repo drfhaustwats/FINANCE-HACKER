@@ -745,13 +745,27 @@ def parse_transactions_from_text(text: str, user_id: str, source_filename: str =
                         # Clean up the description and category part
                         desc_and_cat = description_and_category.strip()
                         
-                        # Skip payment transactions - these are not expenses
-                        if any(payment_keyword in desc_and_cat.upper() for payment_keyword in [
+                        # Skip payment transactions - these are not expenses but should be recorded as credits
+                        payment_keywords = [
                             'PAYMENT THANK YOU', 'PAIEMENT MERCI', 'PAYMENT - THANK YOU', 
-                            'THANK YOU FOR YOUR PAYMENT', 'PAYMENT RECEIVED'
-                        ]):
-                            print(f"SKIPPED PAYMENT: {desc_and_cat}")
-                            continue
+                            'THANK YOU FOR YOUR PAYMENT', 'PAYMENT RECEIVED', 'PAIEMENT',
+                            'PAYMENT/PAIEMENT', 'CREDIT CARD PAYMENT'
+                        ]
+                        
+                        # Try to identify where description ends and category begins
+                        category_str = ""
+                        description = desc_and_cat
+                        
+                        is_payment = any(payment_keyword in desc_and_cat.upper() for payment_keyword in payment_keywords)
+                        
+                        if is_payment:
+                            # For credit cards: payments should be treated as negative (inflow)
+                            print(f"💳 PAYMENT DETECTED: Converting ${clean_amount_str} to inflow (negative)")
+                            transaction_match = (trans_date_str, post_date_str, description, category_str, f"-{clean_amount_str}")
+                            print(f"PAYMENT CONVERTED: Date={trans_date_str}, Desc='{description}', Cat='{category_str}', Amt=-{clean_amount_str}")
+                        else:
+                            transaction_match = (trans_date_str, post_date_str, description, category_str, clean_amount_str)
+                            print(f"EXTRACTED: Date={trans_date_str}, Desc='{description}', Cat='{category_str}', Amt={clean_amount_str} (original: {amount_str})")
                         
                         # Try to identify where description ends and category begins
                         category_str = ""
