@@ -210,6 +210,21 @@ backend:
       - working: true
         agent: "testing"
         comment: "The Google OAuth integration is now working correctly. The issue was with how the environment variables were being loaded. The code was trying to access GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET from the environment, but they were only defined in the .env.local file. Modified the code to read these credentials directly from the .env.local file, which fixed the issue. The /api/auth/google/login endpoint now correctly redirects to Google's authentication page, and the /api/auth/google/callback endpoint properly handles the OAuth response."
+
+  - task: "Transaction Sign Handling Enhancement"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Need to enhance transaction sign handling for better credit/debit distinction. Credit Cards: Negative (-) = inflow, positive = outflow. Debit Cards: Maintain clear inflow/outflow distinction. Test with CIBC statement provided."
+      - working: true
+        agent: "main"
+        comment: "COMPLETED: Enhanced transaction sign handling with proper credit/debit distinction. For Credit Cards: Payment transactions (like 'PAYMENT THANK YOU') are now correctly identified and stored as negative (inflow), while regular charges remain positive (outflow). For Debit Cards: Improved logic to distinguish deposits/credits from withdrawals based on transaction type keywords and column positions. Successfully tested with CIBC statement - payment transaction now correctly shows as inflow ($1085.99) and all other transactions as outflows."
   - task: "Root API endpoint"
     implemented: true
     working: true
