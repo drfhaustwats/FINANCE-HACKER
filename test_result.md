@@ -182,11 +182,11 @@ backend:
         
   - task: "Google OAuth integration"
     implemented: true
-    working: true
+    working: false
     file: "/app/backend/server.py"
-    stuck_count: 1
-    priority: "medium"
-    needs_retesting: false
+    stuck_count: 2
+    priority: "high"
+    needs_retesting: true
     status_history:
       - working: "NA"
         agent: "main"
