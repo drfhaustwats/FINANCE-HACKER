@@ -2066,23 +2066,44 @@ async def change_password(
 @auth_router.get("/google/login")
 async def google_login(request: Request):
     try:
+        # Load environment variables directly from .env.local
+        google_client_id = None
+        google_client_secret = None
+        
+        # Try to read from .env.local first
+        env_local_path = ROOT_DIR / '.env.local'
+        if env_local_path.exists():
+            with open(env_local_path, 'r') as f:
+                for line in f:
+                    if line.strip().startswith('GOOGLE_CLIENT_ID='):
+                        google_client_id = line.strip().split('=', 1)[1].strip('"\'')
+                    elif line.strip().startswith('GOOGLE_CLIENT_SECRET='):
+                        google_client_secret = line.strip().split('=', 1)[1].strip('"\'')
+        
+        # If not found, try environment variables
+        if not google_client_id:
+            google_client_id = os.environ.get("GOOGLE_CLIENT_ID")
+        if not google_client_secret:
+            google_client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
+        
         # Validate OAuth configuration
-        if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        if not google_client_id or not google_client_secret:
+            logging.error("Google OAuth credentials not found in .env.local or environment variables")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Google OAuth not configured"
             )
         
         # Log OAuth attempt
-        logging.info(f"Google OAuth login attempt - Client ID: {GOOGLE_CLIENT_ID[:10]}...")
+        logging.info(f"Google OAuth login attempt - Client ID: {google_client_id[:10]}...")
         
         # Create OAuth config
         oauth = OAuth()
         google = oauth.register(
             name='google',
-            client_id=GOOGLE_CLIENT_ID,
-            client_secret=GOOGLE_CLIENT_SECRET,
-            server_metadata_url='https://accounts.google.com/.well-known/openid_configuration',
+            client_id=google_client_id,
+            client_secret=google_client_secret,
+            server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
             client_kwargs={
                 'scope': 'openid email profile'
             }
