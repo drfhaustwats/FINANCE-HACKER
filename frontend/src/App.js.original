@@ -1,0 +1,45 @@
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import './App.css';
+import { AuthProvider, useAuth } from './AuthContext';
+import AuthPage from './components/AuthPage';
+import UserHeader from './components/UserHeader';
+import LoadingScreen from './components/LoadingScreen';
+import AdvancedFilters from './components/AdvancedFilters';
+import OptimizedTransactionTable from './components/OptimizedTransactionTable';
+import AnalyticsDashboard from './components/AnalyticsDashboard';
+
+// Main Dashboard Component (wrapped with authentication)
+function Dashboard() {
+  // ... [previous content]
+}
+
+// Main App Component with Authentication
+function AppContent() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  if (!user) {
+    return <AuthPage />;
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <UserHeader />
+      <Dashboard />
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+}
+
+export default App;

@@ -109,56 +109,152 @@ const CustomizableChart = ({ data, title, type: initialType = 'bar' }) => {
     );
   };
 
-  const renderLineChart = () => (
-    <div className="relative h-64">
-      <svg width="100%" height="100%" className="overflow-visible">
-        <defs>
-          <linearGradient id={`gradient-${colorScheme}`} x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" style={{ stopColor: colorSchemes[colorScheme][0], stopOpacity: 0.3 }} />
-            <stop offset="100%" style={{ stopColor: colorSchemes[colorScheme][0], stopOpacity: 0.1 }} />
-          </linearGradient>
-        </defs>
-        
-        {data.map((item, index) => {
-          const x = (index / (data.length - 1)) * 100;
-          const y = 100 - ((item.value || item.amount || 0) / maxValue) * 80;
+  const renderLineChart = () => {
+    const points = data.map((item, index) => {
+      const x = (index / (data.length - 1)) * 100;
+      const y = 100 - ((item.value || item.amount || 0) / maxValue) * 80;
+      return { x, y };
+    });
+
+    // Create a smooth curve through the points
+    const line = points.reduce((path, point, i) => {
+      if (i === 0) return `M ${point.x},${point.y}`;
+      
+      // Calculate control points for smooth curve
+      const prev = points[i - 1];
+      const curr = point;
+      const next = points[i + 1] || point;
+      
+      const smoothing = 0.2; // Adjust this value to control curve smoothness
+      
+      const cp1x = prev.x + (curr.x - prev.x) * smoothing;
+      const cp1y = prev.y;
+      const cp2x = curr.x - (next.x - prev.x) * smoothing;
+      const cp2y = curr.y;
+      
+      return `${path} C ${cp1x},${cp1y} ${cp2x},${cp2y} ${curr.x},${curr.y}`;
+    }, '');
+
+    return (
+      <div className="relative h-80 pl-6 pr-4 pt-4 pb-6">
+        <svg width="100%" height="100%" className="overflow-visible" viewBox="-15 -10 130 120" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id={`gradient-${colorScheme}`} x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" style={{ stopColor: colorSchemes[colorScheme][0], stopOpacity: 0.3 }} />
+              <stop offset="100%" style={{ stopColor: colorSchemes[colorScheme][0], stopOpacity: 0.05 }} />
+            </linearGradient>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+            <filter id="shadow">
+              <feDropShadow dx="0" dy="1" stdDeviation="1" floodOpacity="0.2"/>
+            </filter>
+          </defs>
           
-          return (
-            <g key={index}>
+          {/* Grid lines */}
+          {[0, 25, 50, 75, 100].map(y => (
+            <line
+              key={y}
+              x1="0"
+              y1={y}
+              x2="100"
+              y2={y}
+              stroke="#f0f0f0"
+              strokeWidth="0.5"
+            />
+          ))}
+
+          {/* Fill area under the curve */}
+          <path
+            d={`${line} L ${points[points.length - 1].x},100 L ${points[0].x},100 Z`}
+            fill={`url(#gradient-${colorScheme})`}
+            className="transition-opacity duration-300"
+          />
+          
+          {/* Line */}
+          <path
+            d={line}
+            fill="none"
+            stroke={colorSchemes[colorScheme][0]}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            filter="url(#glow)"
+            className="transition-all duration-300"
+          />
+          
+          {/* Data points with hover effects */}
+          {points.map((point, index) => (
+            <g key={index} className="transition-transform duration-200 hover:scale-110">
+              {/* Outer glow */}
               <circle
-                cx={`${x}%`}
-                cy={`${y}%`}
-                r="4"
+                cx={`${point.x}%`}
+                cy={`${point.y}%`}
+                r="8"
+                fill={`${colorSchemes[colorScheme][0]}33`}
+                className="transition-all duration-200"
+              />
+              {/* Outer circle (highlight) */}
+              <circle
+                cx={`${point.x}%`}
+                cy={`${point.y}%`}
+                r="5"
+                fill="white"
+                className="transition-all duration-200"
+              />
+              {/* Inner circle (data point) */}
+              <circle
+                cx={`${point.x}%`}
+                cy={`${point.y}%`}
+                r="3"
                 fill={colorSchemes[colorScheme][0]}
-                className="hover:r-6 transition-all"
+                className="transition-all duration-200"
               />
               {showValues && (
-                <text
-                  x={`${x}%`}
-                  y={`${y - 10}%`}
-                  textAnchor="middle"
-                  className="text-xs fill-gray-600"
-                >
-                  {item.value ? `${item.value}%` : `$${Math.abs(item.amount || 0).toFixed(0)}`}
-                </text>
+                <g>
+                  <rect
+                    x={`${point.x - 18}%`}
+                    y={`${point.y - 25}%`}
+                    width="36"
+                    height="18"
+                    rx="4"
+                    fill="white"
+                    filter="url(#glow)"
+                  />
+                  <text
+                    x={`${point.x}%`}
+                    y={`${point.y - 14}%`}
+                    textAnchor="middle"
+                    className="text-xs font-medium fill-gray-600"
+                  >
+                    {data[index].value ? `${data[index].value}%` : `$${Math.abs(data[index].amount || 0).toFixed(0)}`}
+                  </text>
+                </g>
               )}
             </g>
-          );
-        })}
-        
-        <polyline
-          fill="none"
-          stroke={colorSchemes[colorScheme][0]}
-          strokeWidth="2"
-          points={data.map((item, index) => {
-            const x = (index / (data.length - 1)) * 100;
-            const y = 100 - ((item.value || item.amount || 0) / maxValue) * 80;
-            return `${x},${y}`;
-          }).join(' ')}
-        />
-      </svg>
-    </div>
-  );
+          ))}
+
+          {/* Y-axis labels */}
+          {[0, 25, 50, 75, 100].map(y => (
+            <text
+              key={y}
+              x="-12"
+              y={y}
+              textAnchor="end"
+              alignmentBaseline="middle"
+              className="text-xs font-medium fill-gray-500"
+            >
+              {100 - y}
+            </text>
+          ))}
+        </svg>
+      </div>
+    );
+  };
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
