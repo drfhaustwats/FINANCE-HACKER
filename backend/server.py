@@ -1,5 +1,6 @@
 from fastapi import FastAPI, APIRouter, UploadFile, File, Form, HTTPException, Depends, status, Request
 from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -2292,9 +2293,9 @@ async def google_callback(request: Request):
         frontend_url = os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:3000').replace('/api', '').replace(':8001', ':3000')
         redirect_url = f"{frontend_url}?token={access_token}"
         
-        logging.info(f"Google OAuth success - redirecting to: {frontend_url}")
-        
-        return {"redirect_url": redirect_url, "access_token": access_token, "token_type": "bearer"}
+        logging.info(f"Google OAuth success - redirecting to: {redirect_url}")
+
+        return RedirectResponse(url=redirect_url, status_code=302)
         
     except HTTPException:
         # Re-raise HTTP exceptions as-is
