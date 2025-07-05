@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import CustomizableChart from './CustomizableChart';
 import {
   DndContext,
@@ -16,8 +16,8 @@ import {
 } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useAuth } from '../AuthContext';
 
+// Sortable widget wrapper component
 function SortableWidget({ widget, widgetId, children }) {
   const {
     attributes,
@@ -33,7 +33,7 @@ function SortableWidget({ widget, widgetId, children }) {
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="mb-6">
       {children}
     </div>
   );
@@ -46,23 +46,13 @@ const AnalyticsDashboard = ({
   formatCurrency,
   getMonthName 
 }) => {
-  const { getCurrentUserId } = useAuth();
-  const userId = getCurrentUserId();
-  
   const [dashboardLayout, setDashboardLayout] = useState('default');
-  
-  // Load initial widget order from localStorage with user-specific key
-  const storageKey = `widgetOrder_${userId}`;
-  const savedWidgets = localStorage.getItem(storageKey);
-  const defaultWidgets = ['monthlyTrend', 'categoryBreakdown', 'accountTypeAnalysis', 'sourceAnalysis'];
-  const [selectedWidgets, setSelectedWidgets] = useState(
-    savedWidgets ? JSON.parse(savedWidgets) : defaultWidgets
-  );
-
-  // Save widget order to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(selectedWidgets));
-  }, [selectedWidgets, storageKey]);
+  const [selectedWidgets, setSelectedWidgets] = useState([
+    'monthlyTrend',
+    'categoryBreakdown',
+    'accountTypeAnalysis',
+    'sourceAnalysis'
+  ]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -215,7 +205,7 @@ const AnalyticsDashboard = ({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Dashboard Controls */}
       <div className="bg-white rounded-lg shadow p-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -265,7 +255,7 @@ const AnalyticsDashboard = ({
         collisionDetection={closestCenter}
         onDragEnd={handleDragEnd}
       >
-        <div className={`${layoutPresets[dashboardLayout].grid} mb-8`}>
+        <div className={`${layoutPresets[dashboardLayout].grid}`}>
           <SortableContext 
             items={selectedWidgets}
             strategy={verticalListSortingStrategy}
@@ -276,22 +266,18 @@ const AnalyticsDashboard = ({
 
               return (
                 <SortableWidget key={widgetId} widgetId={widgetId} widget={widget}>
-                  <div className="bg-white rounded-lg shadow-sm hover:shadow transition-shadow duration-200 mb-4">
-                    {widget.component === 'chart' ? (
-                      <div className="p-4">
-                        <CustomizableChart
-                          data={widget.data}
-                          title={widget.title}
-                          type={widgetId === 'monthlyTrend' ? 'line' : 'bar'}
-                        />
-                      </div>
-                    ) : (
-                      <div className="p-6">
-                        <h3 className="text-lg font-medium text-gray-900 mb-4">{widget.title}</h3>
-                        {widget.render()}
-                      </div>
-                    )}
-                  </div>
+                  {widget.component === 'chart' ? (
+                    <CustomizableChart
+                      data={widget.data}
+                      title={widget.title}
+                      type="bar"
+                    />
+                  ) : (
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">{widget.title}</h3>
+                      {widget.render()}
+                    </div>
+                  )}
                 </SortableWidget>
               );
             })}
@@ -300,7 +286,7 @@ const AnalyticsDashboard = ({
       </DndContext>
 
       {/* Quick Stats Bar */}
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-4 md:p-6 text-white mt-8">
+      <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 text-white mt-8">
         <h3 className="text-lg font-semibold mb-4">📈 Quick Insights</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
           <div>
