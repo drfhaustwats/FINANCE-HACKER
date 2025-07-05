@@ -2290,11 +2290,8 @@ async def google_callback(request: Request):
         )
         
         # Return token and redirect to frontend with token in query params
-        frontend_url = os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:3000').replace('/api', '').replace(':8001', ':3000')
-        redirect_url = f"{frontend_url}?token={access_token}"
-        
-        logging.info(f"Google OAuth success - redirecting to: {redirect_url}")
-
+        frontend_url = os.environ['FRONTEND_URL']
+        redirect_url   = f"{frontend_url}?token={access_token}"
         return RedirectResponse(url=redirect_url, status_code=302)
         
     except HTTPException:
