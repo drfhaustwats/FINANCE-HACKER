@@ -18,6 +18,22 @@ export const AuthProvider = ({ children }) => {
   const [householdMembers, setHouseholdMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(localStorage.getItem('token'));
+
+
+  useEffect(() => {
+    // 1) see if Google just gave us ?token=…
+    const params   = new URLSearchParams(window.location.search);
+    const urlToken = params.get('token');
+    if (urlToken) {
+      // 2) save it and push into state
+      localStorage.setItem('token', urlToken);
+      setToken(urlToken);
+      // 3) remove it from the URL bar
+      params.delete('token');
+      const clean = window.location.pathname + (params.toString() ? `?${params}` : '');
+      window.history.replaceState(null, '', clean);
+    }
+  }, []);
   const [viewMode, setViewMode] = useState('personal'); // 'personal', 'family', 'member'
 
   const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
