@@ -2138,21 +2138,64 @@ async def change_password(
 # Google OAuth Endpoints
 @auth_router.get("/google/login")
 async def google_login(request: Request):
-    # Create OAuth config
-    oauth = OAuth()
-    google = oauth.register(
-        name='google',
-        client_id=GOOGLE_CLIENT_ID,
-        client_secret=GOOGLE_CLIENT_SECRET,
-        server_metadata_url='https://accounts.google.com/.well-known/openid_configuration',
-        client_kwargs={
-            'scope': 'openid email profile'
-        }
-    )
-    
-    # Build redirect URI
-    redirect_uri = f"{str(request.base_url).rstrip('/')}/auth/google/callback"
-    return await google.authorize_redirect(request, redirect_uri)
+    try:
+        # Validate OAuth configuration
+        if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+            logging.error("Google OAuth credentials not configured")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Google OAuth not configured. Please contact administrator."
+            )
+        
+        logging.info(f"Google OAuth login attempt - Client ID: {GOOGLE_CLIENT_ID[:10]}...")
+        
+        # Create OAuth config
+        oauth = OAuth()
+        google = oauth.register(
+            name='google',
+            client_id=GOOGLE_CLIENT_ID,
+            client_secret=GOOGLE_CLIENT_SECRET,
+            server_metadata_url='https://accounts.google.com/.well-known/openid_configuration',
+            client_kwargs={
+                'scope': 'openid email profile'
+            }
+        )
+        
+        # Build redirect URI - handle both local and deployed environments
+        base_url = str(request.base_url).rstrip('/')
+        
+        # For Railway deployment, we need to use the correct redirect URI
+        if 'railway.app' in base_url:
+            redirect_uri = f"{base_url}/api/auth/google/callback"
+        elif 'localhost' in base_url or '127.0.0.1' in base_url:
+            redirect_uri = f"{base_url}/api/auth/google/callback"
+        else:
+            # Default to API prefix
+            redirect_uri = f"{base_url}/api/auth/google/callback"
+        
+        logging.info(f"Google OAuth redirect URI: {redirect_uri}")
+        
+        # IMPORTANT: Add error handling for OAuth configuration
+        try:
+            return await google.authorize_redirect(request, redirect_uri)
+        except Exception as oauth_error:
+            logging.error(f"OAuth redirect failed: {oauth_error}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"OAuth configuration error: {str(oauth_error)}"
+            )
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        logging.error(f"Google OAuth login error: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Google OAuth initialization failed: {str(e)}"
+        )
 
 @auth_router.get("/google/callback")
 async def google_callback(request: Request):
