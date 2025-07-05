@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import ApexChart from './ApexChart';
-import { categoryBreakdown, monthlyReports, transactions } from '../mockAnalyticsData';
-import { useAuth } from '../AuthContext';
+import CustomizableChart from './CustomizableChart';
 import {
   DndContext,
   closestCenter,
@@ -18,6 +16,7 @@ import {
 } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useAuth } from '../AuthContext';
 
 function SortableWidget({ widget, widgetId, children }) {
   const {
@@ -40,17 +39,22 @@ function SortableWidget({ widget, widgetId, children }) {
   );
 }
 
-const AnalyticsDashboard = () => {
-  const { getCurrentUserId, getViewModeLabel } = useAuth();
+const AnalyticsDashboard = ({ 
+  categoryBreakdown, 
+  monthlyReports, 
+  transactions,
+  formatCurrency,
+  getMonthName 
+}) => {
+  const { getCurrentUserId } = useAuth();
   const userId = getCurrentUserId();
-  const viewModeLabel = getViewModeLabel();
   
   const [dashboardLayout, setDashboardLayout] = useState('default');
   
   // Load initial widget order from localStorage with user-specific key
   const storageKey = `widgetOrder_${userId}`;
   const savedWidgets = localStorage.getItem(storageKey);
-  const defaultWidgets = ['monthlyTrend', 'categoryBreakdown', 'inflowOutflow', 'accountTypeAnalysis', 'sourceAnalysis'];
+  const defaultWidgets = ['monthlyTrend', 'categoryBreakdown', 'accountTypeAnalysis', 'sourceAnalysis'];
   const [selectedWidgets, setSelectedWidgets] = useState(
     savedWidgets ? JSON.parse(savedWidgets) : defaultWidgets
   );
@@ -67,61 +71,7 @@ const AnalyticsDashboard = () => {
     })
   );
 
-  // Helper functions
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
-  };
-
-  const getMonthName = (month) => {
-    return new Date(2024, month - 1).toLocaleString('default', { month: 'long' });
-  };
-
   const availableWidgets = {
-    inflowOutflow: {
-      title: '💰 Inflow vs Outflow',
-      component: 'custom',
-      render: () => {
-        const inflows = transactions.filter(t => t.amount < 0);
-        const outflows = transactions.filter(t => t.amount > 0);
-        const totalInflow = Math.abs(inflows.reduce((sum, t) => sum + t.amount, 0));
-        const totalOutflow = Math.abs(outflows.reduce((sum, t) => sum + t.amount, 0));
-        const netFlow = totalInflow - totalOutflow;
-
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-green-50 rounded-lg p-4 text-center">
-                <div className="text-2xl mb-1">💰</div>
-                <div className="text-sm text-green-700 font-medium">Inflows</div>
-                <div className="text-lg font-bold text-green-900">{formatCurrency(totalInflow)}</div>
-                <div className="text-xs text-green-600">{inflows.length} transactions</div>
-              </div>
-              
-              <div className="bg-red-50 rounded-lg p-4 text-center">
-                <div className="text-2xl mb-1">💸</div>
-                <div className="text-sm text-red-700 font-medium">Outflows</div>
-                <div className="text-lg font-bold text-red-900">{formatCurrency(totalOutflow)}</div>
-                <div className="text-xs text-red-600">{outflows.length} transactions</div>
-              </div>
-              
-              <div className={`${netFlow >= 0 ? 'bg-green-50' : 'bg-red-50'} rounded-lg p-4 text-center`}>
-                <div className="text-2xl mb-1">{netFlow >= 0 ? '📈' : '📉'}</div>
-                <div className={`text-sm font-medium ${netFlow >= 0 ? 'text-green-700' : 'text-red-700'}`}>Net Flow</div>
-                <div className={`text-lg font-bold ${netFlow >= 0 ? 'text-green-900' : 'text-red-900'}`}>
-                  {netFlow >= 0 ? '+' : ''}{formatCurrency(netFlow)}
-                </div>
-                <div className={`text-xs ${netFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {netFlow >= 0 ? 'Surplus' : 'Deficit'}
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      }
-    },
     categoryBreakdown: {
       title: '🏷️ Category Breakdown',
       component: 'chart',
@@ -227,7 +177,7 @@ const AnalyticsDashboard = () => {
   const layoutPresets = {
     default: {
       name: '📊 Default Layout',
-      grid: 'grid-cols-1 lg:grid-cols-2 gap-6'
+      grid: 'grid-cols-1 lg:grid-cols-2 gap-6 items-start'
     },
     single: {
       name: '📱 Single Column',
@@ -235,11 +185,11 @@ const AnalyticsDashboard = () => {
     },
     triple: {
       name: '🖥️ Triple Column',
-      grid: 'grid-cols-1 lg:grid-cols-3 gap-4'
+      grid: 'grid-cols-1 lg:grid-cols-3 gap-4 items-start'
     },
     compact: {
       name: '📄 Compact View',
-      grid: 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4'
+      grid: 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-start'
     }
   };
 
@@ -269,10 +219,7 @@ const AnalyticsDashboard = () => {
       {/* Dashboard Controls */}
       <div className="bg-white rounded-lg shadow p-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">📊 Analytics Dashboard</h2>
-            <p className="text-sm text-gray-600">{viewModeLabel}</p>
-          </div>
+          <h2 className="text-xl font-bold text-gray-900">📊 Customizable Analytics Dashboard</h2>
           
           <div className="flex items-center space-x-4">
             {/* Layout Selector */}
@@ -332,11 +279,10 @@ const AnalyticsDashboard = () => {
                   <div className="bg-white rounded-lg shadow-sm hover:shadow transition-shadow duration-200 mb-4">
                     {widget.component === 'chart' ? (
                       <div className="p-4">
-                        <ApexChart
+                        <CustomizableChart
                           data={widget.data}
-                          type={widgetId === 'monthlyTrend' ? 'line' : 'bar'}
                           title={widget.title}
-                          isMoneyValue={widgetId === 'monthlyTrend'}
+                          type={widgetId === 'monthlyTrend' ? 'line' : 'bar'}
                         />
                       </div>
                     ) : (
