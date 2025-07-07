@@ -1,5 +1,43 @@
 import React, { useState } from 'react';
 import CustomizableChart from './CustomizableChart';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+// Sortable widget wrapper component
+function SortableWidget({ widget, widgetId, children }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: widgetId });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="mb-6">
+      {children}
+    </div>
+  );
+}
 
 const AnalyticsDashboard = ({ 
   categoryBreakdown, 
@@ -10,11 +48,18 @@ const AnalyticsDashboard = ({
 }) => {
   const [dashboardLayout, setDashboardLayout] = useState('default');
   const [selectedWidgets, setSelectedWidgets] = useState([
-    'categoryBreakdown',
     'monthlyTrend',
+    'categoryBreakdown',
     'accountTypeAnalysis',
     'sourceAnalysis'
   ]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const availableWidgets = {
     categoryBreakdown: {
@@ -116,55 +161,13 @@ const AnalyticsDashboard = ({
             })}
         </div>
       )
-    },
-    inflowOutflow: {
-      title: '💰 Inflow vs Outflow',
-      component: 'custom',
-      render: () => {
-        const inflows = transactions.filter(t => t.amount < 0);
-        const outflows = transactions.filter(t => t.amount > 0);
-        const totalInflow = Math.abs(inflows.reduce((sum, t) => sum + t.amount, 0));
-        const totalOutflow = Math.abs(outflows.reduce((sum, t) => sum + t.amount, 0));
-        const netFlow = totalInflow - totalOutflow;
-
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-green-50 rounded-lg p-4 text-center">
-                <div className="text-2xl mb-1">💰</div>
-                <div className="text-sm text-green-700 font-medium">Inflows</div>
-                <div className="text-lg font-bold text-green-900">{formatCurrency(totalInflow)}</div>
-                <div className="text-xs text-green-600">{inflows.length} transactions</div>
-              </div>
-              
-              <div className="bg-red-50 rounded-lg p-4 text-center">
-                <div className="text-2xl mb-1">💸</div>
-                <div className="text-sm text-red-700 font-medium">Outflows</div>
-                <div className="text-lg font-bold text-red-900">{formatCurrency(totalOutflow)}</div>
-                <div className="text-xs text-red-600">{outflows.length} transactions</div>
-              </div>
-              
-              <div className={`${netFlow >= 0 ? 'bg-green-50' : 'bg-red-50'} rounded-lg p-4 text-center`}>
-                <div className="text-2xl mb-1">{netFlow >= 0 ? '📈' : '📉'}</div>
-                <div className={`text-sm font-medium ${netFlow >= 0 ? 'text-green-700' : 'text-red-700'}`}>Net Flow</div>
-                <div className={`text-lg font-bold ${netFlow >= 0 ? 'text-green-900' : 'text-red-900'}`}>
-                  {netFlow >= 0 ? '+' : ''}{formatCurrency(netFlow)}
-                </div>
-                <div className={`text-xs ${netFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {netFlow >= 0 ? 'Surplus' : 'Deficit'}
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      }
     }
   };
 
   const layoutPresets = {
     default: {
       name: '📊 Default Layout',
-      grid: 'grid-cols-1 lg:grid-cols-2 gap-6'
+      grid: 'grid-cols-1 lg:grid-cols-2 gap-6 items-start'
     },
     single: {
       name: '📱 Single Column',
@@ -172,11 +175,11 @@ const AnalyticsDashboard = ({
     },
     triple: {
       name: '🖥️ Triple Column',
-      grid: 'grid-cols-1 lg:grid-cols-3 gap-4'
+      grid: 'grid-cols-1 lg:grid-cols-3 gap-4 items-start'
     },
     compact: {
       name: '📄 Compact View',
-      grid: 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4'
+      grid: 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-start'
     }
   };
 
@@ -187,6 +190,19 @@ const AnalyticsDashboard = ({
         : [...prev, widgetId]
     );
   };
+
+  function handleDragEnd(event) {
+    const { active, over } = event;
+    
+    if (active.id !== over.id) {
+      setSelectedWidgets((items) => {
+        const oldIndex = items.indexOf(active.id);
+        const newIndex = items.indexOf(over.id);
+        
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -234,32 +250,43 @@ const AnalyticsDashboard = ({
       </div>
 
       {/* Dashboard Grid */}
-      <div className={`${layoutPresets[dashboardLayout].grid}`}>
-        {selectedWidgets.map(widgetId => {
-          const widget = availableWidgets[widgetId];
-          if (!widget) return null;
+      <DndContext 
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <div className={`${layoutPresets[dashboardLayout].grid}`}>
+          <SortableContext 
+            items={selectedWidgets}
+            strategy={verticalListSortingStrategy}
+          >
+            {selectedWidgets.map((widgetId) => {
+              const widget = availableWidgets[widgetId];
+              if (!widget) return null;
 
-          return (
-            <div key={widgetId} className="relative">
-              {widget.component === 'chart' ? (
-                <CustomizableChart
-                  data={widget.data}
-                  title={widget.title}
-                  type="bar"
-                />
-              ) : (
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">{widget.title}</h3>
-                  {widget.render()}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+              return (
+                <SortableWidget key={widgetId} widgetId={widgetId} widget={widget}>
+                  {widget.component === 'chart' ? (
+                    <CustomizableChart
+                      data={widget.data}
+                      title={widget.title}
+                      type="bar"
+                    />
+                  ) : (
+                    <div className="bg-white rounded-lg shadow p-6">
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">{widget.title}</h3>
+                      {widget.render()}
+                    </div>
+                  )}
+                </SortableWidget>
+              );
+            })}
+          </SortableContext>
+        </div>
+      </DndContext>
 
       {/* Quick Stats Bar */}
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 text-white">
+      <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 text-white mt-8">
         <h3 className="text-lg font-semibold mb-4">📈 Quick Insights</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
           <div>
