@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import CustomizableChart from './CustomizableChart';
+import ApexChart from './ApexChart';
 import {
   DndContext,
   closestCenter,
@@ -17,7 +17,6 @@ import {
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-// Sortable widget wrapper component
 function SortableWidget({ widget, widgetId, children }) {
   const {
     attributes,
@@ -266,18 +265,21 @@ const AnalyticsDashboard = ({
 
               return (
                 <SortableWidget key={widgetId} widgetId={widgetId} widget={widget}>
-                  {widget.component === 'chart' ? (
-                    <CustomizableChart
-                      data={widget.data}
-                      title={widget.title}
-                      type="bar"
-                    />
-                  ) : (
-                    <div className="bg-white rounded-lg shadow p-6">
-                      <h3 className="text-lg font-medium text-gray-900 mb-4">{widget.title}</h3>
-                      {widget.render()}
-                    </div>
-                  )}
+                  <div className="bg-white rounded-lg shadow p-4">
+                    {widget.component === 'chart' ? (
+                      <ApexChart
+                        data={widget.data}
+                        type={widgetId === 'monthlyTrend' ? 'line' : 'bar'}
+                        title={widget.title}
+                        isMoneyValue={widgetId === 'monthlyTrend'}
+                      />
+                    ) : (
+                      <div className="p-2">
+                        <h3 className="text-lg font-medium text-gray-900 mb-4">{widget.title}</h3>
+                        {widget.render()}
+                      </div>
+                    )}
+                  </div>
                 </SortableWidget>
               );
             })}
