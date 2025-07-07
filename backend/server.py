@@ -1,5 +1,6 @@
 from fastapi import FastAPI, APIRouter, UploadFile, File, Form, HTTPException, Depends, status, Request
 from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -33,17 +34,7 @@ import random
 import string
 from authlib.integrations.starlette_client import OAuth
 import httpx
-# Initialize OAuth client
-oauth = OAuth()
-google_oauth = oauth.register(
-    name='google',
-    client_id=GOOGLE_CLIENT_ID,
-    client_secret=GOOGLE_CLIENT_SECRET,
-    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
-    client_kwargs={
-        'scope': 'openid email profile'
-    }
-)
+
 
 
 ROOT_DIR = Path(__file__).parent
@@ -68,6 +59,16 @@ GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET")
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
+oauth = OAuth()
+google_oauth = oauth.register(
+    name='google',
+    client_id=GOOGLE_CLIENT_ID,
+    client_secret=GOOGLE_CLIENT_SECRET,
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={
+        'scope': 'openid email profile'
+    }
+)
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -2154,7 +2155,7 @@ async def google_login(request: Request):
             name='google',
             client_id=GOOGLE_CLIENT_ID,
             client_secret=GOOGLE_CLIENT_SECRET,
-            server_metadata_url='https://accounts.google.com/.well-known/openid_configuration',
+            server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
             client_kwargs={
                 'scope': 'openid email profile'
             }
@@ -2216,7 +2217,7 @@ async def google_callback(request: Request):
             name='google',
             client_id=GOOGLE_CLIENT_ID,
             client_secret=GOOGLE_CLIENT_SECRET,
-            server_metadata_url='https://accounts.google.com/.well-known/openid_configuration',
+            server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
             client_kwargs={
                 'scope': 'openid email profile'
             }
@@ -2288,12 +2289,9 @@ async def google_callback(request: Request):
         )
         
         # Return token and redirect to frontend with token in query params
-        frontend_url = os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:3000').replace('/api', '').replace(':8001', ':3000')
-        redirect_url = f"{frontend_url}?token={access_token}"
-        
-        logging.info(f"Google OAuth success - redirecting to: {frontend_url}")
-        
-        return {"redirect_url": redirect_url, "access_token": access_token, "token_type": "bearer"}
+        frontend_url = os.environ['FRONTEND_URL']
+        redirect_url   = f"{frontend_url}?token={access_token}"
+        return RedirectResponse(url=redirect_url, status_code=302)
         
     except HTTPException:
         # Re-raise HTTP exceptions as-is
