@@ -17,6 +17,7 @@ import {
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+// SortableWidget component for drag-and-drop
 function SortableWidget({ widget, widgetId, children }) {
   const {
     attributes,
@@ -53,6 +54,7 @@ const AnalyticsDashboard = ({
     'sourceAnalysis'
   ]);
 
+  // Set up drag-and-drop sensors
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -60,6 +62,7 @@ const AnalyticsDashboard = ({
     })
   );
 
+  // Keep the original widget definitions
   const availableWidgets = {
     categoryBreakdown: {
       title: '🏷️ Category Breakdown',
@@ -163,6 +166,7 @@ const AnalyticsDashboard = ({
     }
   };
 
+  // Keep the original layout presets
   const layoutPresets = {
     default: {
       name: '📊 Default Layout',
@@ -190,6 +194,7 @@ const AnalyticsDashboard = ({
     );
   };
 
+  // Handle drag-and-drop
   function handleDragEnd(event) {
     const { active, over } = event;
     
