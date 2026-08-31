@@ -1,22 +1,30 @@
 import React, { useState } from 'react';
 import { useAuth } from '../AuthContext';
 import UserProfile from './UserProfile';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import SwapHorizIcon from '@mui/icons-material/SwapHoriz';
+import PersonIcon from '@mui/icons-material/Person';
+import GroupIcon from '@mui/icons-material/Group';
+import SettingsIcon from '@mui/icons-material/Settings';
+import HomeIcon from '@mui/icons-material/Home';
+import LogoutIcon from '@mui/icons-material/Logout';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 const UserHeader = () => {
-  const { 
-    user, 
-    currentViewUser, 
-    household, 
-    householdMembers, 
+  const {
+    user,
+    currentViewUser,
+    household,
+    householdMembers,
     viewMode,
-    logout, 
-    switchToUser, 
-    switchToPersonalView, 
+    logout,
+    switchToUser,
+    switchToPersonalView,
     switchToFamilyView,
     getViewModeLabel,
     canSwitchUsers
   } = useAuth();
-  
+
   const [showDropdown, setShowDropdown] = useState(false);
   const [showUserSwitcher, setShowUserSwitcher] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -49,16 +57,16 @@ const UserHeader = () => {
           {/* Logo/Title */}
           <div className="flex items-center space-x-4">
             <div className="h-8 w-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white text-lg font-bold">💰</span>
+              <span className="text-white text-sm font-bold tracking-wide">LT</span>
             </div>
             <h1 className="text-xl font-semibold text-gray-900">LifeTracker</h1>
-            
+
             {/* View Mode Indicator */}
             <div className="hidden md:flex items-center space-x-2">
               <span className="text-sm text-gray-500">Viewing:</span>
               <span className={`text-sm font-medium px-2 py-1 rounded-full ${
-                viewMode === 'family' 
-                  ? 'bg-purple-100 text-purple-800' 
+                viewMode === 'family'
+                  ? 'bg-purple-100 text-purple-800'
                   : viewMode === 'member'
                   ? 'bg-blue-100 text-blue-800'
                   : 'bg-green-100 text-green-800'
@@ -77,11 +85,9 @@ const UserHeader = () => {
                   onClick={() => setShowUserSwitcher(!showUserSwitcher)}
                   className="flex items-center space-x-2 text-sm bg-blue-50 rounded-md px-3 py-2 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <span className="text-blue-700">👥</span>
+                  <SwapHorizIcon sx={{ fontSize: 18, color: '#3b82f6' }} />
                   <span className="text-blue-700 font-medium">Switch View</span>
-                  <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
+                  <KeyboardArrowDownIcon sx={{ fontSize: 18, color: '#3b82f6' }} />
                 </button>
 
                 {/* User Switcher Dropdown */}
@@ -96,9 +102,9 @@ const UserHeader = () => {
                         }`}
                       >
                         <div className="flex items-center space-x-2">
-                          <span>🏠</span>
+                          <PersonIcon sx={{ fontSize: 18 }} />
                           <span>{user?.full_name} (Your Data)</span>
-                          {viewMode === 'personal' && <span className="text-green-600">✓</span>}
+                          {viewMode === 'personal' && <CheckCircleIcon sx={{ fontSize: 14, color: '#16a34a' }} />}
                         </div>
                       </button>
 
@@ -110,9 +116,9 @@ const UserHeader = () => {
                         }`}
                       >
                         <div className="flex items-center space-x-2">
-                          <span>👨‍👩‍👧‍👦</span>
+                          <GroupIcon sx={{ fontSize: 18 }} />
                           <span>Family Combined View</span>
-                          {viewMode === 'family' && <span className="text-purple-600">✓</span>}
+                          {viewMode === 'family' && <CheckCircleIcon sx={{ fontSize: 14, color: '#9333ea' }} />}
                         </div>
                       </button>
 
@@ -127,8 +133,8 @@ const UserHeader = () => {
                               key={member.id}
                               onClick={() => handleUserSwitch(member)}
                               className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${
-                                viewMode === 'member' && currentViewUser?.id === member.id 
-                                  ? 'bg-blue-50 text-blue-800' 
+                                viewMode === 'member' && currentViewUser?.id === member.id
+                                  ? 'bg-blue-50 text-blue-800'
                                   : 'text-gray-700'
                               }`}
                             >
@@ -140,7 +146,7 @@ const UserHeader = () => {
                                 </div>
                                 <span>{member.full_name}</span>
                                 {viewMode === 'member' && currentViewUser?.id === member.id && (
-                                  <span className="text-blue-600">✓</span>
+                                  <CheckCircleIcon sx={{ fontSize: 14, color: '#2563eb' }} />
                                 )}
                               </div>
                             </button>
@@ -164,9 +170,7 @@ const UserHeader = () => {
                   </span>
                 </div>
                 <span className="text-gray-700 font-medium">{user?.full_name}</span>
-                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
+                <KeyboardArrowDownIcon sx={{ fontSize: 18, color: '#6b7280' }} />
               </button>
 
               {/* Main Dropdown Menu */}
@@ -178,9 +182,7 @@ const UserHeader = () => {
                       <p className="text-sm font-medium text-gray-900">{user?.full_name}</p>
                       <p className="text-sm text-gray-500">{user?.email}</p>
                       {household && (
-                        <p className="text-xs text-blue-600 mt-1">
-                          🏠 {household.name}
-                        </p>
+                        <p className="text-xs text-blue-600 mt-1">{household.name}</p>
                       )}
                     </div>
 
@@ -190,33 +192,37 @@ const UserHeader = () => {
                         setShowProfile(true);
                         setShowDropdown(false);
                       }}
-                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                     >
-                      👤 Profile Settings
+                      <SettingsIcon sx={{ fontSize: 16 }} />
+                      <span>Profile Settings</span>
                     </button>
-                    
+
                     {household ? (
                       <button
                         onClick={() => setShowDropdown(false)}
-                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                       >
-                        🏠 Manage Household
+                        <HomeIcon sx={{ fontSize: 16 }} />
+                        <span>Manage Household</span>
                       </button>
                     ) : (
                       <button
                         onClick={() => setShowDropdown(false)}
-                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                       >
-                        ➕ Create Household
+                        <HomeIcon sx={{ fontSize: 16 }} />
+                        <span>Create Household</span>
                       </button>
                     )}
-                    
+
                     <div className="border-t border-gray-100">
                       <button
                         onClick={handleLogout}
-                        className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                        className="w-full flex items-center space-x-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
                       >
-                        🚪 Sign Out
+                        <LogoutIcon sx={{ fontSize: 16 }} />
+                        <span>Sign Out</span>
                       </button>
                     </div>
                   </div>
@@ -226,7 +232,7 @@ const UserHeader = () => {
           </div>
         </div>
       </div>
-      
+
       {/* Profile Modal */}
       {showProfile && (
         <UserProfile onClose={() => setShowProfile(false)} />

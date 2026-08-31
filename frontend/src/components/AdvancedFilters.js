@@ -1,23 +1,27 @@
 import React, { useState } from 'react';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import ClearAllIcon from '@mui/icons-material/ClearAll';
 
-const AdvancedFilters = ({ 
-  filters, 
-  onFilterChange, 
-  onClearFilters, 
-  categories, 
-  pdfSources 
+const AdvancedFilters = ({
+  filters,
+  onFilterChange,
+  onClearFilters,
+  categories,
+  pdfSources
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
     <div className="bg-white rounded-lg shadow">
       {/* Collapsed Header */}
-      <div 
+      <div
         className="px-6 py-4 border-b border-gray-200 flex justify-between items-center cursor-pointer hover:bg-gray-50 transition-colors"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center space-x-3">
-          <h3 className="text-lg font-medium text-gray-900">🔍 Filters & Search</h3>
+          <FilterListIcon sx={{ fontSize: 20, opacity: 0.6 }} />
+          <h3 className="text-lg font-medium text-gray-900">Filters & Search</h3>
           {Object.values(filters).some(v => v) && (
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
               {Object.values(filters).filter(v => v).length} active
@@ -31,14 +35,19 @@ const AdvancedFilters = ({
                 e.stopPropagation();
                 onClearFilters();
               }}
-              className="text-sm text-red-600 hover:text-red-800 px-2 py-1 rounded"
+              className="flex items-center space-x-1 text-sm text-red-600 hover:text-red-800 px-2 py-1 rounded"
             >
-              Clear All
+              <ClearAllIcon sx={{ fontSize: 16 }} />
+              <span>Clear All</span>
             </button>
           )}
-          <span className={`transform transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
-            ▼
-          </span>
+          <ExpandMoreIcon
+            sx={{
+              fontSize: 22,
+              transition: 'transform 0.2s',
+              transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)'
+            }}
+          />
         </div>
       </div>
 
@@ -55,7 +64,7 @@ const AdvancedFilters = ({
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
               <input
@@ -65,7 +74,7 @@ const AdvancedFilters = ({
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
               <select
@@ -79,7 +88,7 @@ const AdvancedFilters = ({
                 ))}
               </select>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Account Type</label>
               <select

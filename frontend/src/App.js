@@ -8,11 +8,40 @@ import LoadingScreen from './components/LoadingScreen';
 import AdvancedFilters from './components/AdvancedFilters';
 import OptimizedTransactionTable from './components/OptimizedTransactionTable';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
+import Subscriptions from './components/Subscriptions';
+import ImportProgress from './components/ImportProgress';
+import RecategorizeProgress from './components/RecategorizeProgress';
+import PlaidConnectPanel from './components/PlaidConnectPanel';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import CategoryIcon from '@mui/icons-material/Category';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlined';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import AutorenewIcon from '@mui/icons-material/Autorenew';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import SyncIcon from '@mui/icons-material/Sync';
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
+import SearchIcon from '@mui/icons-material/Search';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates';
+import RadarIcon from '@mui/icons-material/Radar';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import BuildIcon from '@mui/icons-material/Build';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 
 // Main Dashboard Component (wrapped with authentication)
 function Dashboard() {
   const API = process.env.REACT_APP_BACKEND_URL + '/api' || 'http://localhost:8001/api';
-  const { getCurrentUserId, viewMode, getViewModeLabel } = useAuth();
+  const { user, viewMode, getCurrentUserId, getViewModeLabel } = useAuth();
   
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -21,12 +50,14 @@ function Dashboard() {
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [uploadingPDF, setUploadingPDF] = useState(false);
+  const [recategorizingTransactions, setRecategorizingTransactions] = useState(false);
+  const [includeInternalTransfers, setIncludeInternalTransfers] = useState(false);
 
   // Transaction form state
   const [newTransaction, setNewTransaction] = useState({
     date: new Date().toISOString().split('T')[0],
     description: '',
-    category: 'Retail and Grocery',
+    category: '',
     amount: '',
     account_type: 'credit_card'
   });
@@ -37,13 +68,6 @@ function Dashboard() {
     color: '#3B82F6'
   });
   const [editingCategory, setEditingCategory] = useState(null);
-
-  // User management state (simple for now)
-  const [currentUser, setCurrentUser] = useState({
-    id: 'default_user',
-    name: 'You',
-    email: 'user@example.com'
-  });
 
   // Filter and sorting state
   const [filters, setFilters] = useState({
@@ -63,6 +87,24 @@ function Dashboard() {
   const [selectedTransactions, setSelectedTransactions] = useState(new Set());
   const [selectAll, setSelectAll] = useState(false);
 
+  // Subscription state
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [subscriptionSummary, setSubscriptionSummary] = useState(null);
+
+  // AI state
+  const [aiInsights, setAiInsights] = useState(null);  // { items: [...] }
+  const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiSearchQuery, setAiSearchQuery] = useState('');
+  const [aiSearchResults, setAiSearchResults] = useState(null);
+  const [aiSearching, setAiSearching] = useState(false);
+  const [detectedSubs, setDetectedSubs] = useState(null);
+  const [detectingSubs, setDetectingSubs] = useState(false);
+  const [expandedInsight, setExpandedInsight] = useState(null);
+  const [insightDetail, setInsightDetail] = useState(null);
+  const [insightDetailLoading, setInsightDetailLoading] = useState(false);
+  const [insightFollowUp, setInsightFollowUp] = useState('');
+
   // Transaction category editing state
   const [editingTransactionId, setEditingTransactionId] = useState(null);
   const [tempTransactionCategory, setTempTransactionCategory] = useState('');
@@ -76,15 +118,16 @@ function Dashboard() {
     'Transportation',
     'Home and Office Improvement',
     'Hotel, Entertainment and Recreation',
+    'Transfers and Payments',
+    'Income and Payroll',
+    'Banking Fees and ATM',
+    'Insurance and Financial Products',
+    'Investments and Brokerage',
     'Professional and Financial Services',
     'Health and Education',
     'Foreign Currency Transactions',
     'Personal and Household Expenses'
   ];
-
-  useEffect(() => {
-    fetchData();
-  }, []);
 
   const fetchData = async () => {
     setLoading(true);
@@ -100,21 +143,43 @@ function Dashboard() {
       transactionParams.append('sort_order', sortConfig.direction);
 
       const currentYear = new Date().getFullYear();
+      const previousYear = currentYear - 1;
+      const internalTransferParam = includeInternalTransfers ? 'true' : 'false';
       
-      const [transactionsRes, monthlyRes, categoryRes, categoriesRes, sourcesRes] = await Promise.all([
+      const [transactionsRes, monthlyCurrentRes, monthlyPreviousRes, categoryRes, categoriesRes, sourcesRes, subsRes, subSummaryRes] = await Promise.all([
         axios.get(`${API}/transactions?${transactionParams.toString()}`),
-        axios.get(`${API}/analytics/monthly-report?year=${currentYear}`),
-        axios.get(`${API}/analytics/category-breakdown`),
+        axios.get(`${API}/analytics/monthly-report?year=${currentYear}&include_internal_transfers=${internalTransferParam}`),
+        axios.get(`${API}/analytics/monthly-report?year=${previousYear}&include_internal_transfers=${internalTransferParam}`),
+        axios.get(`${API}/analytics/category-breakdown?include_internal_transfers=${internalTransferParam}`),
         axios.get(`${API}/categories`),
-        axios.get(`${API}/transactions/sources`)
+        axios.get(`${API}/transactions/sources`),
+        axios.get(`${API}/subscriptions`).catch(() => ({ data: [] })),
+        axios.get(`${API}/subscriptions/summary`).catch(() => ({ data: null }))
       ]);
+
+      const mergedMonthlyReports = [
+        ...(monthlyPreviousRes.data || []),
+        ...(monthlyCurrentRes.data || [])
+      ]
+        .reduce((acc, report) => {
+          acc[report.month] = report;
+          return acc;
+        }, {});
+      const sortedMonthlyReports = Object.values(mergedMonthlyReports).sort((a, b) => a.month.localeCompare(b.month));
       
-      console.log('Monthly data received:', monthlyRes.data);
+      console.log('Monthly data received:', sortedMonthlyReports);
       setTransactions(transactionsRes.data);
-      setMonthlyReports(monthlyRes.data);
+      setMonthlyReports(sortedMonthlyReports);
       setCategoryBreakdown(categoryRes.data);
       setCategories(categoriesRes.data);
       setPdfSources(sourcesRes.data.sources || []);
+      setSubscriptions(subsRes.data || []);
+      setSubscriptionSummary(subSummaryRes.data || null);
+
+      // Load insight log (non-blocking)
+      axios.get(`${API}/ai/insights`).then(res => {
+        if (res.data) setAiInsights(res.data);
+      }).catch(() => {});
     } catch (error) {
       console.error('Error fetching data:', error);
     }
@@ -132,7 +197,7 @@ function Dashboard() {
       setNewTransaction({
         date: new Date().toISOString().split('T')[0],
         description: '',
-        category: categories.length > 0 ? categories[0].name : 'Retail and Grocery',
+        category: '',
         amount: '',
         account_type: 'credit_card'
       });
@@ -173,6 +238,23 @@ function Dashboard() {
     } catch (error) {
       console.error('Error bulk deleting transactions:', error);
       alert('Error deleting transactions: ' + (error.response?.data?.detail || error.message));
+    }
+  };
+
+  const handleRecategorizeTransactions = async () => {
+    const confirmed = window.confirm('Re-run smart categorization for all of your existing transactions? Custom categories will be preserved.');
+    if (!confirmed) return;
+
+    setRecategorizingTransactions(true);
+    try {
+      const response = await axios.post(`${API}/transactions/recategorize`);
+      fetchData();
+      alert(`${response.data.message}\nUpdated: ${response.data.updated_count} of ${response.data.total_transactions} transactions`);
+    } catch (error) {
+      console.error('Error re-running categorization:', error);
+      alert('Failed to re-run categorization: ' + (error.response?.data?.detail || error.message));
+    } finally {
+      setRecategorizingTransactions(false);
     }
   };
 
@@ -231,6 +313,201 @@ function Dashboard() {
       setSelectAll(true);
     }
   };
+
+  // Subscription handlers
+  const handleAddSubscription = async (data) => {
+    try {
+      await axios.post(`${API}/subscriptions`, data);
+      fetchData();
+    } catch (error) {
+      console.error('Error adding subscription:', error);
+      alert('Failed to add subscription');
+    }
+  };
+
+  const handleUpdateSubscription = async (id, data) => {
+    try {
+      await axios.put(`${API}/subscriptions/${id}`, data);
+      fetchData();
+    } catch (error) {
+      console.error('Error updating subscription:', error);
+      alert('Failed to update subscription');
+    }
+  };
+
+  const handleDeleteSubscription = async (id) => {
+    if (!window.confirm('Delete this subscription?')) return;
+    try {
+      await axios.delete(`${API}/subscriptions/${id}`);
+      fetchData();
+    } catch (error) {
+      console.error('Error deleting subscription:', error);
+    }
+  };
+
+  // AI handlers
+  const generateNewInsights = async () => {
+    setAiGenerating(true);
+    try {
+      await axios.post(`${API}/ai/insights/generate`);
+      // Reload the full list
+      const response = await axios.get(`${API}/ai/insights`);
+      setAiInsights(response.data);
+    } catch (error) {
+      console.error('Error generating insights:', error);
+    }
+    setAiGenerating(false);
+  };
+
+  const handleAiSearch = async (e) => {
+    e.preventDefault();
+    if (!aiSearchQuery.trim()) return;
+    setAiSearching(true);
+    try {
+      const response = await axios.post(`${API}/ai/search`, { query: aiSearchQuery });
+      setAiSearchResults(response.data);
+    } catch (error) {
+      console.error('Error with AI search:', error);
+    }
+    setAiSearching(false);
+  };
+
+  const handleInsightStatusChange = async (insightId, newStatus) => {
+    try {
+      await axios.post(`${API}/ai/insights/update-status`, { insight_id: insightId, status: newStatus });
+      // Update local state
+      setAiInsights(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          insights: prev.insights?.map(i => i.id === insightId ? { ...i, status: newStatus } : i) || [],
+          anomalies: prev.anomalies?.map(a => a.id === insightId ? { ...a, status: newStatus } : a) || [],
+        };
+      });
+    } catch (error) {
+      console.error('Error updating insight status:', error);
+    }
+  };
+
+  const handleInsightDrillDown = (insight) => {
+    // Switch to transactions tab and run AI search with the insight's query
+    setAiSearchQuery(insight.search_query || insight.text);
+    setActiveTab('transactions');
+    // Trigger search
+    setTimeout(async () => {
+      try {
+        setAiSearching(true);
+        const response = await axios.post(`${API}/ai/search`, { query: insight.search_query || insight.text });
+        setAiSearchResults(response.data);
+      } catch (error) {
+        console.error('Error with drill-down search:', error);
+      }
+      setAiSearching(false);
+    }, 100);
+  };
+
+  const handleInsightTellMore = async (insight, insightId) => {
+    if (expandedInsight === insightId) {
+      setExpandedInsight(null);
+      setInsightDetail(null);
+      return;
+    }
+    setExpandedInsight(insightId);
+    setInsightDetailLoading(true);
+    setInsightDetail(null);
+
+    // Check if there's already a thread saved
+    const existingItem = aiInsights?.items?.find(i => i.id === insightId);
+    if (existingItem?.thread?.length > 0) {
+      // Show the last assistant response from the thread
+      const lastAssistant = [...existingItem.thread].reverse().find(e => e.role === 'assistant');
+      if (lastAssistant) {
+        setInsightDetail({ ...lastAssistant.content, _thread: existingItem.thread });
+        setInsightDetailLoading(false);
+        return;
+      }
+    }
+
+    try {
+      const response = await axios.post(`${API}/ai/insight-detail`, {
+        insight: insight.text || insight,
+        insight_id: insightId
+      });
+      setInsightDetail(response.data);
+    } catch (error) {
+      console.error('Error getting insight detail:', error);
+    }
+    setInsightDetailLoading(false);
+  };
+
+  const handleInsightFollowUp = async (insight, insightId) => {
+    if (!insightFollowUp.trim()) return;
+    setInsightDetailLoading(true);
+    try {
+      const response = await axios.post(`${API}/ai/insight-detail`, {
+        insight: insight.text || insight,
+        insight_id: insightId,
+        follow_up: insightFollowUp,
+      });
+      setInsightDetail(response.data);
+      setInsightFollowUp('');
+
+      // Auto-close: if resolved, update local state
+      if (response.data.resolved) {
+        setAiInsights(prev => ({
+          ...prev,
+          items: prev.items?.map(i => i.id === insightId ? { ...i, status: 'addressed' } : i)
+        }));
+      }
+
+      // Reload insights to get updated thread
+      const listRes = await axios.get(`${API}/ai/insights`);
+      if (listRes.data) setAiInsights(listRes.data);
+    } catch (error) {
+      console.error('Error with follow-up:', error);
+    }
+    setInsightDetailLoading(false);
+  };
+
+  const handleDetectSubscriptions = async () => {
+    setDetectingSubs(true);
+    try {
+      const response = await axios.get(`${API}/ai/detect-subscriptions`);
+      setDetectedSubs(response.data.detected || []);
+    } catch (error) {
+      console.error('Error detecting subscriptions:', error);
+    }
+    setDetectingSubs(false);
+  };
+
+  const handleSaveDetectedSubs = async (subsToSave) => {
+    try {
+      await axios.post(`${API}/ai/detect-subscriptions/save`, subsToSave);
+      setDetectedSubs(null);
+      fetchData();
+    } catch (error) {
+      console.error('Error saving detected subscriptions:', error);
+      alert(error.response?.data?.detail || 'Failed to save detected subscriptions');
+    }
+  };
+
+  const [showRecategorize, setShowRecategorize] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState(null); // e.g. "2026-03"
+  const [monthInsights, setMonthInsights] = useState(null);
+  const [monthInsightsLoading, setMonthInsightsLoading] = useState(false);
+  const viewUserId = getCurrentUserId();
+  const isSharedView = viewMode !== 'personal';
+
+  useEffect(() => {
+    axios.defaults.headers.common['X-View-User-ID'] = viewUserId;
+  }, [viewUserId]);
+
+  useEffect(() => {
+    setSelectedTransactions(new Set());
+    setSelectAll(false);
+    setSelectedMonth(null);
+    setAiSearchResults(null);
+  }, [viewUserId]);
 
   const handlePDFUpload = async (event) => {
     const file = event.target.files[0];
@@ -364,7 +641,7 @@ function Dashboard() {
   // Auto-fetch data when filters or sorting changes
   useEffect(() => {
     fetchData();
-  }, [filters, sortConfig]);
+  }, [filters, sortConfig, includeInternalTransfers, viewUserId]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-CA', {
@@ -392,6 +669,71 @@ function Dashboard() {
     });
   };
 
+  const getMonthKey = (dateObj) => {
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  };
+
+  const buildRecentMonthlyReports = (reports, monthsToShow = 6) => {
+    const reportByMonth = reports.reduce((acc, report) => {
+      acc[report.month] = report;
+      return acc;
+    }, {});
+
+    const now = new Date();
+    const filled = [];
+    for (let offset = monthsToShow - 1; offset >= 0; offset--) {
+      const monthDate = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+      const monthKey = getMonthKey(monthDate);
+      filled.push(
+        reportByMonth[monthKey] || {
+          month: monthKey,
+          year: monthDate.getFullYear(),
+          categories: {},
+          total_spent: 0,
+          total_received: 0,
+          net: 0,
+          transaction_count: 0
+        }
+      );
+    }
+
+    return filled;
+  };
+
+  const now = new Date();
+  const currentMonthKey = getMonthKey(now);
+  const currentMonthLabel = now.toLocaleDateString('en-CA', {
+    year: 'numeric',
+    month: 'long'
+  });
+  const monthlyReportByMonth = monthlyReports.reduce((acc, report) => {
+    acc[report.month] = report;
+    return acc;
+  }, {});
+  const currentMonthReport = monthlyReportByMonth[currentMonthKey] || {
+    month: currentMonthKey,
+    year: now.getFullYear(),
+    categories: {},
+    total_spent: 0,
+    total_received: 0,
+    net: 0,
+    transaction_count: 0
+  };
+  const latestActivityReport = monthlyReports.length > 0 ? monthlyReports[monthlyReports.length - 1] : null;
+  const timeAwareMonthlyReports = buildRecentMonthlyReports(monthlyReports, 6);
+  const maxTimeAwareMonthlyTotal = Math.max(
+    ...timeAwareMonthlyReports.map((report) => report.total_spent),
+    0
+  );
+  const activeCategoryCount = new Set((transactions || []).map((transaction) => transaction.category).filter(Boolean)).size;
+  const filterCategoryOptions = isSharedView
+    ? Array.from(new Set((transactions || []).map((transaction) => transaction.category).filter(Boolean)))
+        .sort((a, b) => a.localeCompare(b))
+        .map((name) => ({ id: `derived-${name}`, name }))
+    : categories;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -401,7 +743,7 @@ function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="finance-dashboard min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -413,7 +755,7 @@ function Dashboard() {
             <div className="text-right">
               <p className="text-sm text-gray-600">Total Transactions</p>
               <p className="text-2xl font-bold text-blue-600">{transactions.length}</p>
-              <p className="text-xs text-gray-500">Welcome, {currentUser.name}</p>
+              <p className="text-xs text-gray-500">Welcome, {user?.full_name || 'You'}</p>
             </div>
           </div>
         </div>
@@ -424,12 +766,13 @@ function Dashboard() {
         <div className="border-b border-gray-200 mb-8">
           <nav className="-mb-px flex space-x-8">
             {[
-              { id: 'overview', name: 'Overview', icon: '📊' },
-              { id: 'transactions', name: 'Transactions', icon: '💳' },
-              { id: 'analytics', name: 'Analytics', icon: '📈' },
-              { id: 'categories', name: 'Categories', icon: '🏷️' },
-              { id: 'add', name: 'Add Transaction', icon: '➕' },
-              { id: 'import', name: 'Import PDF', icon: '📄' }
+              { id: 'overview', name: 'Overview', icon: <DashboardIcon sx={{ fontSize: 16 }} /> },
+              { id: 'transactions', name: 'Transactions', icon: <ReceiptLongIcon sx={{ fontSize: 16 }} /> },
+              { id: 'subscriptions', name: 'Subscriptions', icon: <AutorenewIcon sx={{ fontSize: 16 }} /> },
+              { id: 'analytics', name: 'Analytics', icon: <BarChartIcon sx={{ fontSize: 16 }} /> },
+              { id: 'categories', name: 'Categories', icon: <CategoryIcon sx={{ fontSize: 16 }} /> },
+              { id: 'add', name: 'Add Transaction', icon: <AddCircleOutlineIcon sx={{ fontSize: 16 }} /> },
+              { id: 'import', name: 'Import PDF', icon: <UploadFileIcon sx={{ fontSize: 16 }} /> }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -438,9 +781,9 @@ function Dashboard() {
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                } whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2`}
+                } whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-1.5`}
               >
-                <span>{tab.icon}</span>
+                {tab.icon}
                 <span>{tab.name}</span>
               </button>
             ))}
@@ -448,185 +791,283 @@ function Dashboard() {
         </div>
 
         {/* Overview Tab */}
-        {activeTab === 'overview' && (
-          <div className="space-y-8">
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-blue-100 rounded-md">
-                    <span className="text-2xl">💰</span>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Total Spending</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {formatCurrency(categoryBreakdown.reduce((sum, cat) => sum + cat.amount, 0))}
-                    </p>
-                  </div>
-                </div>
+        {activeTab === 'overview' && !selectedMonth && (
+          <div className="space-y-6">
+            {/* Summary row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-lg shadow p-5">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Spending</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {formatCurrency(categoryBreakdown.reduce((sum, cat) => sum + cat.amount, 0))}
+                </p>
               </div>
-
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-green-100 rounded-md">
-                    <span className="text-2xl">📋</span>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Categories</p>
-                    <p className="text-2xl font-bold text-gray-900">{categories.length}</p>
-                  </div>
-                </div>
+              <div className="bg-white rounded-lg shadow p-5">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">This Month</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(currentMonthReport.total_spent)}</p>
+                <p className="text-xs text-gray-500">{currentMonthLabel}</p>
               </div>
-
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-purple-100 rounded-md">
-                    <span className="text-2xl">📅</span>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">This Month</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {monthlyReports.length > 0 ? formatCurrency(monthlyReports[monthlyReports.length - 1].total_spent) : '$0.00'}
-                    </p>
-                  </div>
-                </div>
+              <div className="bg-white rounded-lg shadow p-5">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Transactions</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{transactions.length}</p>
               </div>
-
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex items-center">
-                  <div className="p-2 bg-yellow-100 rounded-md">
-                    <span className="text-2xl">📄</span>
-                  </div>
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">PDF Imports</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {transactions.filter(t => t.pdf_source).length}
-                    </p>
-                  </div>
-                </div>
+              <div className="bg-white rounded-lg shadow p-5">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Categories</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{activeCategoryCount}</p>
               </div>
             </div>
+            <div className="text-sm text-gray-500">
+              Data scope: <span className="font-medium text-gray-700">{getViewModeLabel()}</span>
+            </div>
+            <div className="flex justify-end">
+              <label className="inline-flex items-center space-x-2 text-sm text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={includeInternalTransfers}
+                  onChange={(e) => setIncludeInternalTransfers(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                />
+                <span>Include internal transfers</span>
+              </label>
+            </div>
 
-            {/* Monthly Spending Trend */}
+            {/* Monthly Timeline */}
             <div className="bg-white rounded-lg shadow">
               <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">Monthly Spending Overview</h3>
+                <h3 className="text-lg font-medium text-gray-900">Monthly Reports</h3>
+                <p className="text-xs text-gray-500 mt-1">Click a month to view details, insights, and transactions</p>
               </div>
-              <div className="p-6">
-                <div className="space-y-4">
-                  {monthlyReports && monthlyReports.length > 0 ? (
-                    monthlyReports.slice(-6).map((report) => (
-                      <div key={report.month} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div className="divide-y divide-gray-200">
+                {timeAwareMonthlyReports.slice().reverse().map((report) => {
+                  const monthTransactions = transactions.filter(t => t.date?.startsWith(report.month));
+                  const transactionCount = monthTransactions.length;
+                  const inflows = Number(report.total_received ?? monthTransactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0));
+                  const outflows = Number(report.total_spent || 0);
+                  const net = Number(report.net ?? (inflows - outflows));
+                  const hasData = transactionCount > 0;
+                  return (
+                    <div
+                      key={report.month}
+                      onClick={() => hasData && setSelectedMonth(report.month)}
+                      className={`px-6 py-5 flex items-center justify-between transition-colors ${
+                        hasData ? 'cursor-pointer hover:bg-gray-50' : 'opacity-40'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-4">
+                        <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                          <CalendarMonthIcon sx={{ fontSize: 20, opacity: 0.6 }} />
+                        </div>
                         <div>
                           <h4 className="font-medium text-gray-900">{getMonthName(report.month)}</h4>
-                          <p className="text-sm text-gray-600">{report.transaction_count} transactions</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-lg font-semibold text-gray-900">{formatCurrency(report.total_spent)}</p>
-                          <div className="w-32 bg-gray-200 rounded-full h-2 mt-1">
-                            <div 
-                              className="bg-blue-600 h-2 rounded-full" 
-                              style={{
-                                width: `${Math.min(100, (report.total_spent / Math.max(...monthlyReports.map(r => r.total_spent))) * 100)}%`
-                              }}
-                            ></div>
-                          </div>
+                          <p className="text-xs text-gray-500">{transactionCount} transactions</p>
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <p>No monthly data available</p>
-                      <p className="text-sm mt-1">Import transactions to see monthly spending overview</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Top Categories */}
-            <div className="bg-white rounded-lg shadow">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">Spending by Category</h3>
-              </div>
-              <div className="p-6">
-                <div className="space-y-4">
-                  {categoryBreakdown.slice(0, 5).map((category) => (
-                    <div key={category.category} className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
-                        <span className="font-medium text-gray-900">{category.category}</span>
-                        <span className="text-sm text-gray-500">({category.count} transactions)</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="font-semibold text-gray-900">{formatCurrency(category.amount)}</span>
-                        <span className="text-sm text-gray-500 ml-2">({category.percentage}%)</span>
+                      <div className="flex items-center space-x-6">
+                        {hasData && (
+                          <>
+                            <div className="text-right">
+                              <p className="text-xs text-gray-500">Spent</p>
+                              <p className="text-sm font-semibold text-gray-900">{formatCurrency(outflows)}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-gray-500">Received</p>
+                              <p className="text-sm font-semibold text-green-600">{formatCurrency(inflows)}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs text-gray-500">Net</p>
+                              <p className={`text-sm font-semibold ${net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {net >= 0 ? '+' : '-'}{formatCurrency(Math.abs(net))}
+                              </p>
+                            </div>
+                          </>
+                        )}
+                        {!hasData && <p className="text-sm text-gray-400">No data</p>}
                       </div>
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             </div>
           </div>
         )}
 
-        {/* Import PDF Tab */}
-        {activeTab === 'import' && (
-          <div className="max-w-2xl mx-auto">
-            <div className="bg-white rounded-lg shadow">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">📄 Import Bank Statement PDF</h3>
-                <p className="text-sm text-gray-600 mt-1">Upload your bank statement PDF to automatically extract and categorize transactions</p>
+        {/* Month Detail View */}
+        {activeTab === 'overview' && selectedMonth && (() => {
+          const monthLabel = getMonthName(selectedMonth);
+          const monthReport = monthlyReportByMonth[selectedMonth] || {
+            total_spent: 0,
+            total_received: 0,
+            net: 0,
+            categories: {},
+            transaction_count: 0
+          };
+          const monthTx = transactions.filter(t => t.date?.startsWith(selectedMonth));
+          const monthInflows = Number(monthReport.total_received ?? monthTx.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0));
+          const monthOutflows = Number(monthReport.total_spent || 0);
+          const monthNet = Number(monthReport.net ?? (monthInflows - monthOutflows));
+          const monthCatBreakdown = monthReport.categories || {};
+          const sortedCats = Object.entries(monthCatBreakdown).sort((a, b) => b[1] - a[1]);
+          const catTotal = sortedCats.reduce((s, [, v]) => s + v, 0);
+
+          return (
+          <div className="space-y-6">
+            {/* Back button + header */}
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => { setSelectedMonth(null); setMonthInsights(null); }}
+                className="text-sm text-blue-600 hover:text-blue-800"
+              >
+                &larr; All Months
+              </button>
+              <h2 className="text-xl font-bold text-gray-900">{monthLabel}</h2>
+              <label className="inline-flex items-center space-x-2 text-sm text-gray-600 ml-auto">
+                <input
+                  type="checkbox"
+                  checked={includeInternalTransfers}
+                  onChange={(e) => setIncludeInternalTransfers(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                />
+                <span>Include internal transfers</span>
+              </label>
+            </div>
+
+            {/* Month summary cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-lg shadow p-5">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Spent</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(monthOutflows)}</p>
               </div>
-              <div className="p-6">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                  <div className="space-y-4">
-                    <div className="text-6xl">📄</div>
-                    <div>
-                      <h4 className="text-lg font-medium text-gray-900">Upload PDF Statement</h4>
-                      <p className="text-gray-600">Supports CIBC, TD, RBC, and most major banks</p>
-                    </div>
-                    <input
-                      type="file"
-                      accept=".pdf"
-                      onChange={handlePDFUpload}
-                      disabled={uploadingPDF}
-                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50"
-                    />
-                    {uploadingPDF && (
-                      <div className="flex items-center justify-center space-x-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                        <span className="text-blue-600">Processing PDF...</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Features List */}
-                <div className="mt-6 bg-blue-50 rounded-lg p-4">
-                  <h5 className="font-medium text-blue-900 mb-2">✨ Smart PDF Processing Features:</h5>
-                  <ul className="text-sm text-blue-800 space-y-1">
-                    <li>• Automatic transaction detection and parsing</li>
-                    <li>• Smart category assignment based on merchant names</li>
-                    <li>• Duplicate detection (won't import the same transaction twice)</li>
-                    <li>• Support for multiple bank statement formats</li>
-                    <li>• Date range detection and validation</li>
-                  </ul>
-                </div>
-
-                {/* Instructions */}
-                <div className="mt-6 bg-gray-50 rounded-lg p-4">
-                  <h5 className="font-medium text-gray-900 mb-2">📋 Instructions:</h5>
-                  <ol className="text-sm text-gray-700 space-y-1 list-decimal list-inside">
-                    <li>Download your bank statement PDF from your online banking</li>
-                    <li>Make sure it's a clear, text-based PDF (not a scanned image)</li>
-                    <li>Upload the file using the button above</li>
-                    <li>Review the imported transactions in the Transactions tab</li>
-                    <li>Adjust categories if needed</li>
-                  </ol>
-                </div>
+              <div className="bg-white rounded-lg shadow p-5">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Received</p>
+                <p className="text-2xl font-bold text-green-600 mt-1">{formatCurrency(monthInflows)}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-5">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Net</p>
+                <p className={`text-2xl font-bold mt-1 ${monthNet >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {monthNet >= 0 ? '+' : '-'}{formatCurrency(Math.abs(monthNet))}
+                </p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-5">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Transactions</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{monthTx.length}</p>
               </div>
             </div>
+
+            {/* AI Insights for this month */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <div className="flex items-center space-x-2">
+                  <SmartToyIcon sx={{ fontSize: 20, opacity: 0.5 }} />
+                  <h3 className="text-lg font-medium text-gray-900">Insights</h3>
+                  {monthInsights?.items?.length > 0 && (
+                    <span className="text-xs text-gray-500">{monthInsights.items.filter(i => i.status === 'open' || !i.status).length} open</span>
+                  )}
+                </div>
+                <button
+                  onClick={async () => {
+                    setMonthInsightsLoading(true);
+                    try {
+                      await axios.post(`${API}/ai/insights/month/${selectedMonth}/generate`);
+                      const res = await axios.get(`${API}/ai/insights/month/${selectedMonth}`);
+                      setMonthInsights(res.data);
+                    } catch (e) { console.error(e); }
+                    setMonthInsightsLoading(false);
+                  }}
+                  disabled={monthInsightsLoading}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300 transition-colors text-sm"
+                >
+                  <TipsAndUpdatesIcon sx={{ fontSize: 16 }} />
+                  <span>{monthInsightsLoading ? 'Analyzing...' : monthInsights?.items?.length ? 'New Analysis' : 'Generate'}</span>
+                </button>
+              </div>
+              <div className="p-6">
+                {!monthInsights?.items?.length && !monthInsightsLoading && (
+                  <p className="text-sm text-gray-500 text-center py-2">Click Generate to analyze this month</p>
+                )}
+                {monthInsightsLoading && (
+                  <div className="flex items-center justify-center py-4 space-x-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    <span className="text-xs text-gray-500">Analyzing {monthLabel}...</span>
+                  </div>
+                )}
+                {monthInsights?.items?.length > 0 && (
+                  <div className="space-y-2">
+                    {monthInsights.items.map((item, idx) => {
+                      const isAddr = item.status === 'addressed';
+                      return (
+                        <div key={item.id} className={`flex items-start space-x-3 px-3 py-2.5 rounded-lg border transition-opacity ${
+                          isAddr ? 'border-green-300 opacity-50' : item.type === 'anomaly' ? 'border-gray-200' : 'border-gray-200'
+                        }`} style={item.type === 'anomaly' && !isAddr ? { borderLeftWidth: '3px', borderLeftColor: '#f59e0b' } : {}}>
+                          <button
+                            onClick={() => handleInsightStatusChange(item.id, isAddr ? 'open' : 'addressed')}
+                            className="mt-0.5 flex-shrink-0"
+                          >
+                            {isAddr ? <CheckCircleOutlineIcon sx={{ fontSize: 16, color: '#16a34a' }} /> : <RadioButtonUncheckedIcon sx={{ fontSize: 16, color: '#9ca3af' }} />}
+                          </button>
+                          <div className="flex-1">
+                            <p className={`text-sm ${isAddr ? 'line-through text-gray-400' : 'text-gray-700'}`}>{item.text}</p>
+                            {item.reason && <p className="text-xs text-gray-500">{item.reason}</p>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Category breakdown for this month */}
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">Spending by Category</h3>
+              </div>
+              <div className="p-6 space-y-3">
+                {sortedCats.map(([cat, amount]) => (
+                  <div key={cat} className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                      <span className="text-sm font-medium text-gray-900">{cat}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-semibold text-gray-900">{formatCurrency(amount)}</span>
+                      <span className="text-xs text-gray-500 ml-2">({catTotal > 0 ? ((amount / catTotal) * 100).toFixed(1) : 0}%)</span>
+                    </div>
+                  </div>
+                ))}
+                {sortedCats.length === 0 && <p className="text-sm text-gray-500 text-center">No spending this month</p>}
+              </div>
+            </div>
+
+            {/* Transactions for this month */}
+            <OptimizedTransactionTable
+              transactions={monthTx}
+              selectedTransactions={selectedTransactions}
+              onSelectTransaction={handleSelectTransaction}
+              onSelectAll={handleSelectAll}
+              selectAll={selectAll}
+              onSort={handleSort}
+              sortConfig={sortConfig}
+              onEditCategory={handleEditCategory}
+              onDeleteTransaction={handleDeleteTransaction}
+              editingTransactionId={editingTransactionId}
+              tempTransactionCategory={tempTransactionCategory}
+              onTempTransactionCategoryChange={setTempTransactionCategory}
+              onSaveCategoryEdit={handleSaveCategoryEdit}
+              onCancelCategoryEdit={handleCancelCategoryEdit}
+              categories={categories}
+              formatCurrency={formatCurrency}
+              formatDate={formatDate}
+              onUpdateTransaction={handleUpdateTransaction}
+              readOnly={isSharedView}
+            />
+          </div>
+          );
+        })()}
+
+        {/* Import PDF Tab */}
+        {activeTab === 'import' && (
+          <div className="space-y-6">
+            <PlaidConnectPanel onImported={fetchData} />
+            <ImportProgress onComplete={fetchData} />
           </div>
         )}
 
@@ -697,13 +1138,13 @@ function Dashboard() {
                               onClick={() => handleUpdateCategory(category.id, { name: document.activeElement.value })}
                               className="text-green-600 hover:text-green-800"
                             >
-                              ✓
+                              Save
                             </button>
                             <button
                               onClick={() => setEditingCategory(null)}
                               className="text-gray-600 hover:text-gray-800"
                             >
-                              ✕
+                              Cancel
                             </button>
                           </div>
                         </div>
@@ -748,18 +1189,67 @@ function Dashboard() {
         {/* Transactions Tab */}
         {activeTab === 'transactions' && (
           <div className="space-y-6">
+            {/* AI Search */}
+            <div className="bg-white rounded-lg shadow p-4">
+              <div className="flex items-center space-x-3">
+                <form onSubmit={handleAiSearch} className="flex items-center space-x-3 flex-1">
+                  <SmartToyIcon sx={{ fontSize: 20, opacity: 0.5 }} />
+                  <input
+                    type="text"
+                    value={aiSearchQuery}
+                    onChange={(e) => setAiSearchQuery(e.target.value)}
+                    placeholder='Ask anything... "food spending in March", "big purchases over $500", "money sent to family"'
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                  <button
+                    type="submit"
+                    disabled={aiSearching}
+                    className="flex items-center space-x-1.5 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300 transition-colors text-sm"
+                  >
+                    <SearchIcon sx={{ fontSize: 16 }} />
+                    <span>{aiSearching ? 'Searching...' : 'Search'}</span>
+                  </button>
+                  {aiSearchResults && (
+                    <button
+                      type="button"
+                      onClick={() => { setAiSearchResults(null); setAiSearchQuery(''); }}
+                      className="text-sm text-gray-500 hover:text-gray-700"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </form>
+                <button
+                  onClick={() => setShowRecategorize(true)}
+                  disabled={isSharedView}
+                  className="flex items-center space-x-1.5 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors text-sm whitespace-nowrap"
+                  title={isSharedView ? 'Switch to personal view to run recategorization.' : 'Re-categorize transactions with AI'}
+                >
+                  <SmartToyIcon sx={{ fontSize: 16 }} />
+                  <span>AI Re-categorize</span>
+                </button>
+              </div>
+              {aiSearchResults && (
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <p className="text-sm text-gray-600 mb-2">
+                    Found {aiSearchResults.count} results for "{aiSearchResults.query}"
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Advanced Filters (Initially Hidden) */}
             <AdvancedFilters
               filters={filters}
               onFilterChange={handleFilterChange}
               onClearFilters={clearFilters}
-              categories={categories}
+              categories={filterCategoryOptions}
               pdfSources={pdfSources}
             />
 
             {/* Enhanced Transactions Table */}
             <OptimizedTransactionTable
-              transactions={transactions}
+              transactions={aiSearchResults ? aiSearchResults.results : transactions}
               selectedTransactions={selectedTransactions}
               onSelectTransaction={handleSelectTransaction}
               onSelectAll={handleSelectAll}
@@ -777,6 +1267,7 @@ function Dashboard() {
               formatCurrency={formatCurrency}
               formatDate={formatDate}
               onUpdateTransaction={handleUpdateTransaction}
+              readOnly={isSharedView}
             />
 
             {/* Action Bar */}
@@ -791,30 +1282,52 @@ function Dashboard() {
                 <div className="flex items-center space-x-3">
                   <button
                     onClick={handleExportToExcel}
-                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center space-x-2 transition-colors"
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 flex items-center space-x-1.5 transition-colors"
                   >
-                    <span>📊</span>
+                    <FileDownloadIcon sx={{ fontSize: 16 }} />
                     <span>Export Excel</span>
                   </button>
-                  {selectedTransactions.size > 0 && (
+                  {!isSharedView && selectedTransactions.size > 0 && (
                     <button
                       onClick={handleBulkDelete}
-                      className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
+                      className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors flex items-center space-x-1.5"
                     >
-                      🗑️ Delete Selected ({selectedTransactions.size})
+                      <DeleteSweepIcon sx={{ fontSize: 16 }} />
+                      <span>Delete Selected ({selectedTransactions.size})</span>
                     </button>
                   )}
                 </div>
               </div>
+              {isSharedView && (
+                <p className="text-xs text-gray-500 mt-2">Read-only in combined/member view. Switch to personal view for edits.</p>
+              )}
             </div>
           </div>
+        )}
+
+        {/* Subscriptions Tab */}
+        {activeTab === 'subscriptions' && (
+          <Subscriptions
+            subscriptions={subscriptions}
+            subscriptionSummary={subscriptionSummary}
+            categories={categories}
+            onAdd={handleAddSubscription}
+            onUpdate={handleUpdateSubscription}
+            onDelete={handleDeleteSubscription}
+            formatCurrency={formatCurrency}
+            onDetectSubscriptions={handleDetectSubscriptions}
+            onSaveDetectedSubs={handleSaveDetectedSubs}
+            detectedSubs={detectedSubs}
+            detectingSubs={detectingSubs}
+            readOnly={isSharedView}
+          />
         )}
 
         {/* Analytics Tab - Enhanced */}
         {activeTab === 'analytics' && (
           <AnalyticsDashboard
             categoryBreakdown={categoryBreakdown}
-            monthlyReports={monthlyReports}
+            monthlyReports={timeAwareMonthlyReports}
             transactions={transactions}
             formatCurrency={formatCurrency}
             getMonthName={getMonthName}
@@ -873,6 +1386,7 @@ function Dashboard() {
                     onChange={(e) => setNewTransaction({...newTransaction, category: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
+                    <option value="">Auto-detect from description</option>
                     {categories.map(category => (
                       <option key={category.id} value={category.name}>{category.name}</option>
                     ))}
@@ -911,7 +1425,7 @@ function Dashboard() {
             <div className="mt-8 bg-white rounded-lg shadow">
               <div className="px-6 py-4 border-b border-gray-200">
                 <h3 className="text-lg font-medium text-gray-900">Bulk Import CSV</h3>
-                <p className="text-sm text-gray-600 mt-1">Upload a CSV file with columns: date, description, category, amount</p>
+                <p className="text-sm text-gray-600 mt-1">Upload a CSV file with columns: date, description, amount. Category is optional and will auto-detect when blank.</p>
               </div>
               <div className="p-6">
                 <input
@@ -939,6 +1453,15 @@ function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* AI Recategorize Modal */}
+      {showRecategorize && (
+        <RecategorizeProgress
+          onComplete={fetchData}
+          onClose={() => setShowRecategorize(false)}
+          categories={categories}
+        />
+      )}
     </div>
   );
 };
@@ -956,7 +1479,7 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="finance-theme min-h-screen bg-gray-50">
       <UserHeader />
       <Dashboard />
     </div>
@@ -965,9 +1488,11 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <div className="finance-theme">
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </div>
   );
 }
 

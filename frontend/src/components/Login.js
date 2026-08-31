@@ -39,7 +39,7 @@ const Login = ({ onSwitchToRegister, onSwitchToForgotPassword }) => {
       <div className="max-w-md w-full space-y-8">
         <div>
           <div className="mx-auto h-12 w-12 bg-blue-600 rounded-full flex items-center justify-center">
-            <span className="text-white text-xl font-bold">💰</span>
+            <span className="text-white text-sm font-bold tracking-wide">LT</span>
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             Welcome to LifeTracker

@@ -1,19 +1,60 @@
 import React, { useState } from 'react';
 
-const CustomizableChart = ({ data, title, type: initialType = 'bar' }) => {
+const CustomizableChart = ({
+  data,
+  title,
+  type: initialType = 'bar',
+  valueDisplay = 'auto',
+  currency = 'CAD',
+  locale = 'en-CA',
+}) => {
   const [chartType, setChartType] = useState(initialType);
   const [showValues, setShowValues] = useState(true);
-  const [colorScheme, setColorScheme] = useState('blue');
+  const [colorScheme, setColorScheme] = useState('graphite');
 
   const colorSchemes = {
-    blue: ['#3B82F6', '#1E40AF', '#1D4ED8', '#2563EB', '#3B82F6'],
-    green: ['#10B981', '#059669', '#047857', '#065F46', '#064E3B'],
-    purple: ['#8B5CF6', '#7C3AED', '#6D28D9', '#5B21B6', '#553C9A'],
-    gradient: ['#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe'],
-    rainbow: ['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6']
+    graphite: ['#93A3B8', '#7C8CA3', '#6B7A91', '#5A697F', '#49586D'],
+    steel: ['#8DA0B8', '#7B8EA7', '#6A7C95', '#596A84', '#485873'],
+    slate: ['#A3ACC1', '#929CB2', '#828CA3', '#727C94', '#626C85']
   };
 
-  const maxValue = Math.max(...data.map(item => item.value || item.amount || 0));
+  const getItemValue = (item) => Number(item?.value ?? item?.amount ?? 0);
+
+  const formatCurrencyValue = (amount) => (
+    new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 2,
+    }).format(Math.abs(Number(amount || 0)))
+  );
+
+  const formatDisplayValue = (item) => {
+    const numericValue = getItemValue(item);
+    if (valueDisplay === 'percentage') {
+      return `${numericValue.toFixed(2)}%`;
+    }
+    if (valueDisplay === 'currency') {
+      return formatCurrencyValue(numericValue);
+    }
+
+    if (item?.amount === undefined && item?.value !== undefined) {
+      return `${numericValue.toFixed(2)}%`;
+    }
+    return formatCurrencyValue(numericValue);
+  };
+
+  if (!Array.isArray(data) || data.length === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">{title}</h3>
+        <div className="min-h-40 flex items-center justify-center text-gray-500 text-sm">
+          No chart data available
+        </div>
+      </div>
+    );
+  }
+
+  const maxValue = Math.max(1, ...data.map(getItemValue));
 
   const renderBarChart = () => (
     <div className="space-y-3">
@@ -27,14 +68,14 @@ const CustomizableChart = ({ data, title, type: initialType = 'bar' }) => {
               <div 
                 className="h-full rounded-full transition-all duration-500 ease-out"
                 style={{ 
-                  width: `${((item.value || item.amount || 0) / maxValue) * 100}%`,
+                  width: `${(getItemValue(item) / maxValue) * 100}%`,
                   backgroundColor: colorSchemes[colorScheme][index % colorSchemes[colorScheme].length]
                 }}
               />
             </div>
             {showValues && (
               <div className="w-16 text-sm font-semibold text-gray-900 text-right">
-                {item.value ? `${item.value}%` : `$${Math.abs(item.amount || 0).toFixed(0)}`}
+                {formatDisplayValue(item)}
               </div>
             )}
           </div>
@@ -44,7 +85,8 @@ const CustomizableChart = ({ data, title, type: initialType = 'bar' }) => {
   );
 
   const renderPieChart = () => {
-    const total = data.reduce((sum, item) => sum + (item.value || item.amount || 0), 0);
+    const total = data.reduce((sum, item) => sum + getItemValue(item), 0);
+    const safeTotal = total || 1;
     let currentAngle = 0;
 
     return (
@@ -52,8 +94,8 @@ const CustomizableChart = ({ data, title, type: initialType = 'bar' }) => {
         <div className="relative">
           <svg width="200" height="200" className="transform -rotate-90">
             {data.map((item, index) => {
-              const value = item.value || item.amount || 0;
-              const percentage = (value / total) * 100;
+              const value = getItemValue(item);
+              const percentage = (value / safeTotal) * 100;
               const angle = (percentage / 100) * 360;
               
               const startAngle = currentAngle;
@@ -99,7 +141,7 @@ const CustomizableChart = ({ data, title, type: initialType = 'bar' }) => {
               <span className="text-gray-700">{item.label || item.category}</span>
               {showValues && (
                 <span className="text-gray-500">
-                  ({item.value ? `${item.value}%` : `$${Math.abs(item.amount || 0).toFixed(0)}`})
+                  ({formatDisplayValue(item)})
                 </span>
               )}
             </div>
@@ -120,8 +162,8 @@ const CustomizableChart = ({ data, title, type: initialType = 'bar' }) => {
         </defs>
         
         {data.map((item, index) => {
-          const x = (index / (data.length - 1)) * 100;
-          const y = 100 - ((item.value || item.amount || 0) / maxValue) * 80;
+          const x = data.length === 1 ? 50 : (index / (data.length - 1)) * 100;
+          const y = 100 - (getItemValue(item) / maxValue) * 80;
           
           return (
             <g key={index}>
@@ -139,7 +181,7 @@ const CustomizableChart = ({ data, title, type: initialType = 'bar' }) => {
                   textAnchor="middle"
                   className="text-xs fill-gray-600"
                 >
-                  {item.value ? `${item.value}%` : `$${Math.abs(item.amount || 0).toFixed(0)}`}
+                  {formatDisplayValue(item)}
                 </text>
               )}
             </g>
@@ -151,8 +193,8 @@ const CustomizableChart = ({ data, title, type: initialType = 'bar' }) => {
           stroke={colorSchemes[colorScheme][0]}
           strokeWidth="2"
           points={data.map((item, index) => {
-            const x = (index / (data.length - 1)) * 100;
-            const y = 100 - ((item.value || item.amount || 0) / maxValue) * 80;
+            const x = data.length === 1 ? 50 : (index / (data.length - 1)) * 100;
+            const y = 100 - (getItemValue(item) / maxValue) * 80;
             return `${x},${y}`;
           }).join(' ')}
         />
@@ -172,9 +214,9 @@ const CustomizableChart = ({ data, title, type: initialType = 'bar' }) => {
             onChange={(e) => setChartType(e.target.value)}
             className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="bar">📊 Bar</option>
-            <option value="pie">🥧 Pie</option>
-            <option value="line">📈 Line</option>
+            <option value="bar">Bar</option>
+            <option value="pie">Pie</option>
+            <option value="line">Line</option>
           </select>
           
           {/* Color Scheme Selector */}
@@ -183,11 +225,9 @@ const CustomizableChart = ({ data, title, type: initialType = 'bar' }) => {
             onChange={(e) => setColorScheme(e.target.value)}
             className="text-sm border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="blue">🔵 Blue</option>
-            <option value="green">🟢 Green</option>
-            <option value="purple">🟣 Purple</option>
-            <option value="gradient">🌈 Gradient</option>
-            <option value="rainbow">🎨 Rainbow</option>
+            <option value="graphite">Graphite</option>
+            <option value="steel">Steel</option>
+            <option value="slate">Slate</option>
           </select>
           
           {/* Show Values Toggle */}
@@ -199,7 +239,7 @@ const CustomizableChart = ({ data, title, type: initialType = 'bar' }) => {
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
-            {showValues ? '👁️' : '👁️‍🗨️'} Values
+            {showValues ? 'Hide Values' : 'Show Values'}
           </button>
         </div>
       </div>

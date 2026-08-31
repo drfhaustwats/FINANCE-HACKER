@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../AuthContext';
 import axios from 'axios';
+import CloseIcon from '@mui/icons-material/Close';
+import LogoutIcon from '@mui/icons-material/Logout';
 
 const UserProfile = ({ onClose }) => {
   const { user, logout } = useAuth();
@@ -31,7 +33,7 @@ const UserProfile = ({ onClose }) => {
     setMessage('');
 
     try {
-      const response = await axios.put(`${API}/auth/profile`, profileForm);
+      await axios.put(`${API}/auth/profile`, profileForm);
       setMessage('Profile updated successfully!');
     } catch (error) {
       setError(error.response?.data?.detail || 'Failed to update profile');
@@ -82,9 +84,7 @@ const UserProfile = ({ onClose }) => {
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <CloseIcon sx={{ fontSize: 24 }} />
           </button>
         </div>
 
@@ -264,9 +264,10 @@ const UserProfile = ({ onClose }) => {
                 <h3 className="text-sm font-medium text-gray-700 mb-2">Account Actions</h3>
                 <button
                   onClick={logout}
-                  className="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                  className="flex items-center space-x-2 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
                 >
-                  Sign Out
+                  <LogoutIcon sx={{ fontSize: 18 }} />
+                  <span>Sign Out</span>
                 </button>
               </div>
             </div>

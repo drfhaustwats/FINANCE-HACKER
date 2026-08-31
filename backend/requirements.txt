@@ -1,20 +1,25 @@
-fastapi==0.104.1
-uvicorn==0.24.0
+fastapi==0.135.3
+uvicorn==0.44.0
 motor==3.3.1
 pymongo==4.6.1
 python-dotenv==1.0.0
-pydantic==2.5.0
+pydantic==2.12.5
 PyPDF2==3.0.1
 pdfplumber==0.10.3
 python-multipart==0.0.6
-pandas==2.1.4
-regex==2023.10.3
+pandas==2.1.4; python_version < "3.13"
+pandas==3.0.2; python_version >= "3.13"
+regex==2023.10.3; python_version < "3.13"
+regex==2026.4.4; python_version >= "3.13"
 openpyxl==3.1.2
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 authlib==1.2.1
 httpx==0.25.2
-starlette==0.27.0
+starlette==1.0.0
 aiosmtplib==3.0.1
 email-validator==2.1.0
 itsdangerous>=2.1
+pypdfium2==5.6.0
+rapidocr-onnxruntime==1.2.3
+plaid-python==39.0.0
