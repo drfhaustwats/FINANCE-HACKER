@@ -21,7 +21,8 @@ const RecategorizeProgress = ({ onComplete, onClose, categories = [] }) => {
   const [resolving, setResolving] = useState(false);
   const scrollRef = useRef(null);
 
-  const API = process.env.REACT_APP_BACKEND_URL + '/api' || 'http://localhost:8001/api';
+  const backendBaseUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
+  const API = `${backendBaseUrl}/api`;
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -39,10 +40,9 @@ const RecategorizeProgress = ({ onComplete, onClose, categories = [] }) => {
     setError(null);
 
     try {
-      const token = localStorage.getItem('token');
       const response = await fetch(`${API}/ai/recategorize`, {
         method: 'POST',
-        headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
+        credentials: 'include'
       });
 
       const reader = response.body.getReader();

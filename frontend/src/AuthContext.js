@@ -2,6 +2,67 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
 const AuthContext = createContext();
+let googleOAuthExchangePromise = null;
+
+// Browser authentication is cookie-backed. The API lives on a sibling origin,
+// so every Axios request must opt in to sending its host-only session cookie.
+axios.defaults.withCredentials = true;
+delete axios.defaults.headers.common['Authorization'];
+
+// Remove credentials left by older builds without ever reading them back into JS.
+if (typeof window !== 'undefined') {
+  window.localStorage.removeItem('token');
+}
+
+const consumeGoogleOAuthCode = () => {
+  const fragment = window.location.hash.startsWith('#')
+    ? window.location.hash.slice(1)
+    : window.location.hash;
+  const params = new URLSearchParams(fragment);
+  const code = params.get('oauth_code');
+
+  if (!code) {
+    return null;
+  }
+
+  // Remove the handoff code before making any network request or updating UI.
+  params.delete('oauth_code');
+  const remainingFragment = params.toString();
+  const cleanUrl = `${window.location.pathname}${window.location.search}${
+    remainingFragment ? `#${remainingFragment}` : ''
+  }`;
+  window.history.replaceState(window.history.state, document.title, cleanUrl);
+  return code;
+};
+
+const getGoogleOAuthExchangePromise = (apiBaseUrl) => {
+  if (googleOAuthExchangePromise) {
+    return googleOAuthExchangePromise;
+  }
+
+  const code = consumeGoogleOAuthCode();
+  if (!code) {
+    return null;
+  }
+
+  // React StrictMode re-runs effects in development. Keep one shared promise so
+  // both effect lifecycles await the same one-time exchange after the fragment
+  // has already been scrubbed from the address bar.
+  const exchangeRequest = axios
+    .post(`${apiBaseUrl}/auth/google/exchange`, { code })
+    .then(() => undefined);
+  const sharedPromise = exchangeRequest.finally(() => {
+    // Keep the settled promise through StrictMode's immediate effect replay,
+    // but do not retain a bearer token in module memory for the page lifetime.
+    window.setTimeout(() => {
+      if (googleOAuthExchangePromise === sharedPromise) {
+        googleOAuthExchangePromise = null;
+      }
+    }, 0);
+  });
+  googleOAuthExchangePromise = sharedPromise;
+  return googleOAuthExchangePromise;
+};
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -17,43 +78,60 @@ export const AuthProvider = ({ children }) => {
   const [household, setHousehold] = useState(null);
   const [householdMembers, setHouseholdMembers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [googleOAuthError, setGoogleOAuthError] = useState('');
   const [viewMode, setViewMode] = useState('personal'); // 'personal', 'family', 'member'
 
   const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 
-  // Set up axios interceptor for token
+  // Complete a Google callback, then ask the API whether its HttpOnly cookie is valid.
   useEffect(() => {
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    } else {
-      delete axios.defaults.headers.common['Authorization'];
-    }
-  }, [token]);
+    let cancelled = false;
 
-  // Check if user is logged in on app start
-  useEffect(() => {
     const checkAuth = async () => {
-      if (token) {
+      const googleOAuthExchange = getGoogleOAuthExchangePromise(API);
+
+      if (googleOAuthExchange) {
         try {
-          const response = await axios.get(`${API}/auth/me`);
-          setUser(response.data);
-          setCurrentViewUser(response.data); // Default to viewing own data
-          
-          // Load household data if user has one
-          if (response.data.household_id) {
-            await loadHouseholdData();
+          await googleOAuthExchange;
+          if (!cancelled) {
+            setGoogleOAuthError('');
           }
         } catch (error) {
-          console.error('Auth check failed:', error);
-          logout(); // Clear invalid token
+          if (!cancelled) {
+            setGoogleOAuthError(
+              error.response?.data?.detail || 'Google sign-in could not be completed. Please try again.'
+            );
+          }
         }
       }
-      setLoading(false);
+
+      try {
+        const response = await axios.get(`${API}/auth/me`);
+        if (!cancelled) {
+          setUser(response.data);
+          setCurrentViewUser(response.data); // Default to viewing own data
+        }
+
+        // Load household data if user has one
+        if (response.data.household_id) {
+          await loadHouseholdData();
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setUser(null);
+          setCurrentViewUser(null);
+        }
+      }
+      if (!cancelled) {
+        setLoading(false);
+      }
     };
 
     checkAuth();
-  }, [token, API]);
+    return () => {
+      cancelled = true;
+    };
+  }, [API]);
 
   const loadHouseholdData = async () => {
     try {
@@ -80,21 +158,14 @@ export const AuthProvider = ({ children }) => {
       formData.append('username', email);
       formData.append('password', password);
 
-      const response = await axios.post(`${API}/auth/login`, formData, {
+      await axios.post(`${API}/auth/login`, formData, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
         }
       });
-
-      const { access_token } = response.data;
-      
-      setToken(access_token);
-      localStorage.setItem('token', access_token);
       
       // Get user info
-      const userResponse = await axios.get(`${API}/auth/me`, {
-        headers: { Authorization: `Bearer ${access_token}` }
-      });
+      const userResponse = await axios.get(`${API}/auth/me`);
       
       const userData = userResponse.data;
       setUser(userData);
@@ -136,16 +207,25 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    setCurrentViewUser(null);
-    setHousehold(null);
-    setHouseholdMembers([]);
-    setViewMode('personal');
-    setToken(null);
-    localStorage.removeItem('token');
-    delete axios.defaults.headers.common['Authorization'];
+  const logout = async () => {
+    googleOAuthExchangePromise = null;
+    try {
+      await axios.post(`${API}/auth/logout`);
+    } catch (error) {
+      console.error('Logout request failed:', error);
+    } finally {
+      setUser(null);
+      setCurrentViewUser(null);
+      setHousehold(null);
+      setHouseholdMembers([]);
+      setViewMode('personal');
+      window.localStorage.removeItem('token');
+      window.sessionStorage.removeItem('lifetracker_plaid_oauth_context');
+      delete axios.defaults.headers.common['Authorization'];
+    }
   };
+
+  const clearGoogleOAuthError = () => setGoogleOAuthError('');
 
   const createHousehold = async (householdData) => {
     try {
@@ -229,10 +309,12 @@ export const AuthProvider = ({ children }) => {
     household,
     householdMembers,
     loading,
+    googleOAuthError,
     viewMode,
     login,
     register,
     logout,
+    clearGoogleOAuthError,
     createHousehold,
     switchToUser,
     switchToPersonalView,

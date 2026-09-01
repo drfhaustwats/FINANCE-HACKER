@@ -153,7 +153,8 @@ class PdfLayoutParserTests(unittest.TestCase):
         self.assertEqual(transactions[0]["description"], "Lovisa Alberta AB")
         self.assertEqual(transactions[0]["category"], "Retail and Grocery")
         self.assertEqual(transactions[0]["amount"], 29.39)
-        self.assertEqual(transactions[0]["date"], "2024-10-13")
+        self.assertEqual(transactions[0]["date"], "2024-10-15")
+        self.assertEqual(transactions[0]["authorized_date"], "2024-10-13")
 
     def test_debit_layout_parser_keeps_multiline_description_and_sign(self):
         rows = [
@@ -318,7 +319,7 @@ class PdfLayoutParserTests(unittest.TestCase):
         self.assertEqual(len(transactions), 2)
         self.assertNotIn("these", transactions[0]["description"].lower())
         self.assertNotIn("continued", transactions[0]["description"].lower())
-        self.assertEqual(transactions[0]["category"], "Professional and Financial Services")
+        self.assertEqual(transactions[0]["category"], "Income and Payroll")
 
     def test_normalize_text_splits_ocr_merged_tokens(self):
         normalized = PARSER["normalize_text"]("INTERAC e-TransferReceived -Autodeposit")

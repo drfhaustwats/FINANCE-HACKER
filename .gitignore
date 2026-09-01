@@ -19,6 +19,9 @@ node_modules/
 # Testing
 /coverage
 
+# Local-only financial statement fixtures (never commit real account data)
+/tests/private-fixtures/
+
 # Next.js
 /.next/
 /out/
@@ -49,6 +52,8 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 dump.rdb
+*.bak
+*.bak[0-9]*
 
 # System files
 .DS_Store
@@ -68,6 +73,7 @@ chainlit.md
 
 # Deployment
 .vercel
+.wrangler/
 
 # Data and databases
 agenthub/agents/youtube/db
@@ -85,4 +91,4 @@ agenthub/agents/youtube/db
 .cache/
 
 # Mobile development
-android-sdk/ 
+android-sdk/

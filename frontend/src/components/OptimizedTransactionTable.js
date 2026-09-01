@@ -31,12 +31,22 @@ const OptimizedTransactionTable = ({
   const [editingFlowId, setEditingFlowId] = useState(null);
 
   const getTransactionFlowLabel = (amount) => {
-    return amount < 0 ? 'Inflow' : 'Outflow';
+    if (amount < 0) return 'Inflow';
+    if (amount > 0) return 'Outflow';
+    return 'Neutral';
   };
 
   const getTransactionFlowColor = (amount) => {
-    return amount < 0 ? 'text-green-600' : 'text-red-600';
+    if (amount < 0) return 'text-green-600';
+    if (amount > 0) return 'text-red-600';
+    return 'text-gray-600';
   };
+
+  const isProviderTransaction = (transaction) => Boolean(
+    transaction.plaid_transaction_id
+      || transaction.source_provider === 'plaid'
+      || transaction.source_type === 'plaid'
+  );
 
   const handleUpdateTransactionFlow = async (transactionId, updateData) => {
     try {
@@ -63,11 +73,11 @@ const OptimizedTransactionTable = ({
           <div className="text-sm text-gray-600 flex items-center space-x-4">
             <span className="flex items-center space-x-1">
               <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-              <span>Inflows: {transactions.filter(t => t.amount < 0).length}</span>
+              <span>Ledger inflows: {transactions.filter(t => t.amount < 0).length}</span>
             </span>
             <span className="flex items-center space-x-1">
               <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-              <span>Outflows: {transactions.filter(t => t.amount > 0).length}</span>
+              <span>Ledger outflows: {transactions.filter(t => t.amount > 0).length}</span>
             </span>
           </div>
         </div>
@@ -203,7 +213,13 @@ const OptimizedTransactionTable = ({
 
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <span className={getTransactionFlowColor(transaction.amount)}>
-                      {formatCurrency(transaction.amount)}
+                      {formatCurrency(
+                        transaction.amount,
+                        transaction.iso_currency_code
+                          || transaction.currency
+                          || transaction.unofficial_currency_code
+                          || 'CAD'
+                      )}
                     </span>
                   </td>
 
@@ -212,19 +228,34 @@ const OptimizedTransactionTable = ({
                       <span className="text-lg">
                         {transaction.amount < 0
                           ? <CallReceivedIcon sx={{ fontSize: 18, color: '#16a34a' }} />
-                          : <CallMadeIcon sx={{ fontSize: 18, color: '#dc2626' }} />
-                        }
+                          : transaction.amount > 0
+                            ? <CallMadeIcon sx={{ fontSize: 18, color: '#dc2626' }} />
+                            : <span className="text-gray-500">—</span>}
                       </span>
                       <span className={`text-xs font-medium px-2 py-1 rounded-full ${readOnly ? '' : 'cursor-pointer hover:opacity-80 transition-opacity'} ${
                         transaction.amount < 0
                           ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
+                          : transaction.amount > 0
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-gray-100 text-gray-700'
                       }`}
                       onClick={() => !readOnly && setEditingFlowId(transaction.id)}
-                      title={readOnly ? 'Read-only in this view' : 'Click to change inflow/outflow'}
+                      title={readOnly
+                        ? 'Read-only in this view'
+                        : isProviderTransaction(transaction)
+                          ? 'Click to review financial meaning; the connected-account direction stays unchanged'
+                          : 'Click to review ledger direction and financial meaning'}
                       >
                         {getTransactionFlowLabel(transaction.amount)}
                       </span>
+                      {transaction.plaid_pending === true && (
+                        <span
+                          className="text-xs font-medium px-2 py-1 rounded-full bg-sky-100 text-sky-900"
+                          title="Pending activity is visible here but excluded from posted analytics totals"
+                        >
+                          Pending
+                        </span>
+                      )}
                       {transaction.is_internal_transfer === true && (
                         <span className="text-xs font-medium px-2 py-1 rounded-full bg-amber-100 text-amber-800">
                           Internal Transfer

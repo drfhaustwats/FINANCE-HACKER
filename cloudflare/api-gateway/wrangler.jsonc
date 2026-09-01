@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "fintrack-api-gateway",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-31",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "routes": [
+    {
+      "pattern": "api.fintrack.olaifa.dev",
+      "custom_domain": true
+    }
+  ],
+  "vars": {
+    "ORIGIN_URL": "https://api-production-199d.up.railway.app"
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.1
+  }
+}

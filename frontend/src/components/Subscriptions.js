@@ -22,6 +22,8 @@ const Subscriptions = ({
   onSaveDetectedSubs,
   detectedSubs,
   detectingSubs,
+  scanMeta,
+  scanError,
   readOnly = false
 }) => {
   const [showForm, setShowForm] = useState(false);
@@ -83,10 +85,20 @@ const Subscriptions = ({
   const getCycleLabel = (cycle) => {
     switch (cycle) {
       case 'weekly': return '/wk';
+      case 'biweekly': return '/2wk';
+      case 'semi_monthly': return '2×/mo';
       case 'monthly': return '/mo';
       case 'yearly': return '/yr';
       default: return '/mo';
     }
+  };
+
+  const getCandidateCurrency = (sub) => String(sub.currency || 'CAD').toUpperCase();
+
+  const showHistoricalAverage = (sub) => {
+    if (sub.average_amount === null || sub.average_amount === undefined) return false;
+    return sub.amount_is_variable === true
+      || Math.abs(Number(sub.average_amount) - Number(sub.amount)) >= 0.01;
   };
 
   const getStatusColor = (status) => {
@@ -100,6 +112,17 @@ const Subscriptions = ({
 
   const activeSubscriptions = subscriptions.filter(s => s.status === 'active');
   const inactiveSubscriptions = subscriptions.filter(s => s.status !== 'active');
+  const aiReviewComplete = ['reviewed', 'reviewed_truncated'].includes(scanMeta?.aiStatus);
+  const aiCounts = scanMeta?.aiCounts || {};
+  const aiRejectedCount = Math.max(
+    0,
+    Number(aiCounts.reviewed || 0) - Number(aiCounts.kept || 0)
+  );
+  const formatAiLabel = (label) => {
+    if (label === 'recurring_bill') return 'Recurring bill';
+    if (label === 'subscription') return 'Subscription';
+    return 'Manual review';
+  };
 
   return (
     <div className="space-y-6">
@@ -137,12 +160,15 @@ const Subscriptions = ({
         </div>
       </div>
 
-      {/* AI Auto-Detect */}
+      {/* Recurring-payment detection and conservative AI review */}
       <div className="bg-white rounded-lg shadow">
         <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
           <div className="flex items-center space-x-2">
             <SmartToyIcon sx={{ fontSize: 20, opacity: 0.6 }} />
-            <h3 className="text-lg font-medium text-gray-900">Auto-Detect Subscriptions</h3>
+            <div>
+              <h3 className="text-lg font-medium text-gray-900">Recurring Payment Scan</h3>
+              <p className="text-xs text-gray-500">Plaid and local patterns find candidates; Claude reviews them before you approve.</p>
+            </div>
           </div>
           <button
             onClick={onDetectSubscriptions}
@@ -156,27 +182,91 @@ const Subscriptions = ({
         {detectingSubs && (
           <div className="p-6 flex items-center justify-center space-x-2">
             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-            <span className="text-sm text-gray-600">AI is scanning your transaction history for recurring bills...</span>
+            <span className="text-sm text-gray-600">Analyzing transaction cadence for recurring bills...</span>
+          </div>
+        )}
+        {scanError && !detectingSubs && (
+          <div className="mx-6 mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {scanError}
+          </div>
+        )}
+        {scanMeta && !detectingSubs && (
+          <div className="mx-6 mt-5 rounded-md border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-800">
+            <p>
+              Analyzed {scanMeta.transactionsAnalyzed.toLocaleString()} transactions.{' '}
+              {scanMeta.plaidStatus === 'available' && 'Plaid recurring data was checked.'}
+              {scanMeta.plaidStatus === 'disabled' && 'Plaid recurring is disabled; results use local patterns.'}
+              {scanMeta.plaidStatus === 'access_required' && 'Plaid recurring access was unavailable; local patterns were used.'}
+              {scanMeta.plaidStatus === 'partial_timeout' && 'Plaid returned a partial result; local patterns are included.'}
+              {scanMeta.plaidStatus === 'temporarily_unavailable' && 'Plaid was temporarily unavailable; local patterns are included.'}
+              {scanMeta.plaidStatus === 'policy_changed' && 'Account permissions changed during the scan; rescan to refresh Plaid results.'}
+            </p>
+            {aiReviewComplete && (
+              <p className="mt-1 font-medium">
+                Claude reviewed {Number(aiCounts.reviewed || 0).toLocaleString()} candidates: kept {Number(aiCounts.kept || 0).toLocaleString()} and rejected {aiRejectedCount.toLocaleString()} (including {Number(aiCounts.uncertain || 0).toLocaleString()} uncertain).
+                {Number(aiCounts.truncated || 0) > 0 && ` ${Number(aiCounts.truncated).toLocaleString()} additional candidates were withheld by the safety limit.`}
+              </p>
+            )}
+            {scanMeta.aiStatus === 'not_configured' && (
+              <p className="mt-1 font-medium">Claude review is not configured. Results below are deterministic candidates for individual manual review.</p>
+            )}
+            {scanMeta.aiStatus === 'provider_unavailable' && (
+              <p className="mt-1 font-medium">Claude was unavailable. No AI-review claim was applied; review each deterministic candidate individually.</p>
+            )}
+            {scanMeta.aiStatus === 'invalid_response' && (
+              <p className="mt-1 font-medium">Claude returned an invalid review, so it was discarded. Review each deterministic candidate individually.</p>
+            )}
+            {Number(aiCounts.deterministic_vetoed || 0) > 0 && (
+              <p className="mt-1 font-medium">Structural rules rejected {Number(aiCounts.deterministic_vetoed).toLocaleString()} transfer or income candidates before AI review.</p>
+            )}
           </div>
         )}
         {detectedSubs && detectedSubs.length === 0 && !detectingSubs && (
           <div className="p-6 text-center text-sm text-gray-500">
-            No new subscriptions detected. Your tracked list looks complete.
+            No recurring payment candidates met the current confidence threshold.
           </div>
         )}
         {detectedSubs && detectedSubs.length > 0 && (
           <div className="p-6 space-y-3">
             <p className="text-sm text-gray-600 mb-3">
-              Found {detectedSubs.length} potential subscriptions. Review and add:
+              {aiReviewComplete
+                ? `Claude kept ${detectedSubs.length} likely subscriptions or recurring bills. Review before adding:`
+                : `Found ${detectedSubs.length} deterministic candidates. Review each one before adding:`}
             </p>
             {detectedSubs.map((sub, i) => (
               <div key={i} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
                 <div>
                   <p className="font-medium text-gray-900">{sub.name}</p>
-                  <p className="text-xs text-gray-500">{sub.category} · {sub.billing_cycle}</p>
+                  <p className="text-xs text-gray-500">
+                    {sub.category} · {sub.billing_cycle}
+                    {sub.occurrences ? ` · ${sub.occurrences} occurrences` : ''}
+                    {sub.confidence ? ` · ${Math.round(sub.confidence * 100)}% confidence` : ''}
+                  </p>
+                  <span className={`inline-flex mt-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${sub.detection_source === 'plaid_recurring' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-700'}`}>
+                    {sub.detection_source === 'plaid_recurring' ? 'Plaid recurring' : 'Local pattern'}
+                  </span>
+                  <span className={`inline-flex mt-1 ml-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${sub.ai_label ? 'bg-violet-100 text-violet-700' : 'bg-amber-100 text-amber-800'}`}>
+                    {sub.ai_label
+                      ? `Claude: ${formatAiLabel(sub.ai_label)}${sub.ai_confidence !== undefined ? ` (${Math.round(Number(sub.ai_confidence) * 100)}%)` : ''}`
+                      : 'Manual review'}
+                  </span>
+                  {sub.ai_reason && (
+                    <p className="mt-1 text-xs text-violet-700">{sub.ai_reason}</p>
+                  )}
                 </div>
                 <div className="flex items-center space-x-3">
-                  <p className="font-semibold text-gray-900">{formatCurrency(sub.amount)}/{sub.billing_cycle === 'monthly' ? 'mo' : sub.billing_cycle === 'yearly' ? 'yr' : 'wk'}</p>
+                  <div className="text-right">
+                    <p className="text-[11px] text-gray-500">Current estimate</p>
+                    <p className="font-semibold text-gray-900">
+                      {getCandidateCurrency(sub)} {formatCurrency(sub.amount, getCandidateCurrency(sub))}{getCycleLabel(sub.billing_cycle)}
+                    </p>
+                    {showHistoricalAverage(sub) && (
+                      <p className="text-[11px] text-gray-500">
+                        Historical avg: {getCandidateCurrency(sub)} {formatCurrency(sub.average_amount, getCandidateCurrency(sub))}
+                        {sub.amount_is_variable === true ? ' · variable' : ''}
+                      </p>
+                    )}
+                  </div>
                   <button
                     onClick={() => !readOnly && onSaveDetectedSubs([sub])}
                     disabled={readOnly}
@@ -188,13 +278,15 @@ const Subscriptions = ({
                 </div>
               </div>
             ))}
-            <button
-              onClick={() => !readOnly && onSaveDetectedSubs(detectedSubs)}
-              disabled={readOnly}
-              className="w-full mt-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed transition-colors text-sm"
-            >
-              Add All ({detectedSubs.length})
-            </button>
+            {aiReviewComplete && (
+              <button
+                onClick={() => !readOnly && onSaveDetectedSubs(detectedSubs)}
+                disabled={readOnly}
+                className="w-full mt-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed transition-colors text-sm"
+              >
+                Add All Claude-Kept ({detectedSubs.length})
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -247,6 +339,8 @@ const Subscriptions = ({
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="weekly">Weekly</option>
+                  <option value="biweekly">Every two weeks</option>
+                  <option value="semi_monthly">Twice monthly</option>
                   <option value="monthly">Monthly</option>
                   <option value="yearly">Yearly</option>
                 </select>

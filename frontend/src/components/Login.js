@@ -10,7 +10,7 @@ const Login = ({ onSwitchToRegister, onSwitchToForgotPassword }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { login } = useAuth();
+  const { login, googleOAuthError, clearGoogleOAuthError } = useAuth();
 
   const handleChange = (e) => {
     setFormData({
@@ -18,12 +18,14 @@ const Login = ({ onSwitchToRegister, onSwitchToForgotPassword }) => {
       [e.target.name]: e.target.value
     });
     setError(''); // Clear error when user types
+    clearGoogleOAuthError();
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    clearGoogleOAuthError();
 
     const result = await login(formData.email, formData.password);
     
@@ -50,9 +52,9 @@ const Login = ({ onSwitchToRegister, onSwitchToForgotPassword }) => {
         </div>
         
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
+          {(error || googleOAuthError) && (
             <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md">
-              {error}
+              {error || googleOAuthError}
             </div>
           )}
           

@@ -19,7 +19,8 @@ const ImportProgress = ({ onComplete }) => {
   const fileInputRef = useRef(null);
   const scrollRef = useRef(null);
 
-  const API = process.env.REACT_APP_BACKEND_URL + '/api' || 'http://localhost:8001/api';
+  const backendBaseUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
+  const API = `${backendBaseUrl}/api`;
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -45,12 +46,9 @@ const ImportProgress = ({ onComplete }) => {
     formData.append('file', file);
 
     try {
-      const token = localStorage.getItem('token');
       const response = await fetch(`${API}/transactions/pdf-import-stream`, {
         method: 'POST',
-        headers: {
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-        },
+        credentials: 'include',
         body: formData
       });
 

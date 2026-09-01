@@ -1,23 +1,30 @@
-import React from 'react';
-import { GoogleLogin } from '@react-oauth/google';
-import { useAuth } from '../AuthContext';
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 
 const GoogleSignIn = () => {
-  const { login } = useAuth();
   const API = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
+  const [enabled, setEnabled] = useState(null);
 
-  const handleGoogleSuccess = async (credentialResponse) => {
-    try {
-      // For now, we'll use a simpler approach and redirect to the backend Google OAuth URL
-      window.location.href = `${API}/auth/google/login`;
-    } catch (error) {
-      console.error('Google OAuth error:', error);
-    }
-  };
+  useEffect(() => {
+    let mounted = true;
+    axios.get(`${API}/auth/capabilities`)
+      .then((response) => {
+        if (mounted) setEnabled(Boolean(response.data?.google_oauth_enabled));
+      })
+      .catch(() => {
+        if (mounted) setEnabled(false);
+      });
+    return () => { mounted = false; };
+  }, [API]);
 
-  const handleGoogleError = () => {
-    console.error('Google OAuth failed');
-  };
+  if (enabled === null) return null;
+  if (!enabled) {
+    return (
+      <p className="mt-5 text-center text-xs text-gray-500">
+        Google sign-in is not configured. Use email registration or password login.
+      </p>
+    );
+  }
 
   return (
     <div className="mt-6">

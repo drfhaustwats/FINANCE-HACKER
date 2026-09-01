@@ -24,6 +24,7 @@
   },
   "scripts": {
     "start": "craco start",
+    "prebuild": "node scripts/validate-production-env.js",
     "build": "craco build",
     "test": "craco test",
     "eject": "react-scripts eject"

@@ -12,6 +12,7 @@ import Subscriptions from './components/Subscriptions';
 import ImportProgress from './components/ImportProgress';
 import RecategorizeProgress from './components/RecategorizeProgress';
 import PlaidConnectPanel from './components/PlaidConnectPanel';
+import ClassificationReviewCenter from './components/ClassificationReviewCenter';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import BarChartIcon from '@mui/icons-material/BarChart';
@@ -40,18 +41,23 @@ import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 
 // Main Dashboard Component (wrapped with authentication)
 function Dashboard() {
-  const API = process.env.REACT_APP_BACKEND_URL + '/api' || 'http://localhost:8001/api';
+  const backendBaseUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
+  const API = `${backendBaseUrl}/api`;
   const { user, viewMode, getCurrentUserId, getViewModeLabel } = useAuth();
   
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]);
   const [monthlyReports, setMonthlyReports] = useState([]);
   const [categoryBreakdown, setCategoryBreakdown] = useState([]);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [dashboardSummary, setDashboardSummary] = useState(null);
+  const [activeTab, setActiveTab] = useState(() => (
+    typeof window !== 'undefined' && new URL(window.location.href).searchParams.has('oauth_state_id')
+      ? 'import'
+      : 'overview'
+  ));
   const [loading, setLoading] = useState(true);
   const [uploadingPDF, setUploadingPDF] = useState(false);
   const [recategorizingTransactions, setRecategorizingTransactions] = useState(false);
-  const [includeInternalTransfers, setIncludeInternalTransfers] = useState(false);
 
   // Transaction form state
   const [newTransaction, setNewTransaction] = useState({
@@ -100,6 +106,8 @@ function Dashboard() {
   const [aiSearching, setAiSearching] = useState(false);
   const [detectedSubs, setDetectedSubs] = useState(null);
   const [detectingSubs, setDetectingSubs] = useState(false);
+  const [subscriptionScanMeta, setSubscriptionScanMeta] = useState(null);
+  const [subscriptionScanError, setSubscriptionScanError] = useState('');
   const [expandedInsight, setExpandedInsight] = useState(null);
   const [insightDetail, setInsightDetail] = useState(null);
   const [insightDetailLoading, setInsightDetailLoading] = useState(false);
@@ -144,13 +152,19 @@ function Dashboard() {
 
       const currentYear = new Date().getFullYear();
       const previousYear = currentYear - 1;
-      const internalTransferParam = includeInternalTransfers ? 'true' : 'false';
+      // Dashboard spending always excludes transfers and debt movements. Gross
+      // account movement remains available in the reconciliation view.
+      const internalTransferParam = 'false';
+      const today = new Date();
+      const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      const yearStart = `${currentYear}-01-01`;
       
-      const [transactionsRes, monthlyCurrentRes, monthlyPreviousRes, categoryRes, categoriesRes, sourcesRes, subsRes, subSummaryRes] = await Promise.all([
+      const [transactionsRes, monthlyCurrentRes, monthlyPreviousRes, summaryRes, categoryRes, categoriesRes, sourcesRes, subsRes, subSummaryRes] = await Promise.all([
         axios.get(`${API}/transactions?${transactionParams.toString()}`),
-        axios.get(`${API}/analytics/monthly-report?year=${currentYear}&include_internal_transfers=${internalTransferParam}`),
-        axios.get(`${API}/analytics/monthly-report?year=${previousYear}&include_internal_transfers=${internalTransferParam}`),
-        axios.get(`${API}/analytics/category-breakdown?include_internal_transfers=${internalTransferParam}`),
+        axios.get(`${API}/analytics/monthly-report?year=${currentYear}&include_internal_transfers=${internalTransferParam}&include_pending=false`),
+        axios.get(`${API}/analytics/monthly-report?year=${previousYear}&include_internal_transfers=${internalTransferParam}&include_pending=false`),
+        axios.get(`${API}/analytics/dashboard-summary?year=${currentYear}&include_internal_transfers=${internalTransferParam}&include_pending=false`),
+        axios.get(`${API}/analytics/category-breakdown?start_date=${yearStart}&end_date=${todayKey}&include_internal_transfers=${internalTransferParam}&include_pending=false`),
         axios.get(`${API}/categories`),
         axios.get(`${API}/transactions/sources`),
         axios.get(`${API}/subscriptions`).catch(() => ({ data: [] })),
@@ -167,9 +181,9 @@ function Dashboard() {
         }, {});
       const sortedMonthlyReports = Object.values(mergedMonthlyReports).sort((a, b) => a.month.localeCompare(b.month));
       
-      console.log('Monthly data received:', sortedMonthlyReports);
       setTransactions(transactionsRes.data);
       setMonthlyReports(sortedMonthlyReports);
+      setDashboardSummary(summaryRes.data || null);
       setCategoryBreakdown(categoryRes.data);
       setCategories(categoriesRes.data);
       setPdfSources(sourcesRes.data.sources || []);
@@ -380,10 +394,13 @@ function Dashboard() {
         if (!prev) return prev;
         return {
           ...prev,
-          insights: prev.insights?.map(i => i.id === insightId ? { ...i, status: newStatus } : i) || [],
-          anomalies: prev.anomalies?.map(a => a.id === insightId ? { ...a, status: newStatus } : a) || [],
+          items: prev.items?.map(item => item.id === insightId ? { ...item, status: newStatus } : item) || [],
         };
       });
+      setMonthInsights(prev => prev ? {
+        ...prev,
+        items: prev.items?.map(item => item.id === insightId ? { ...item, status: newStatus } : item) || [],
+      } : prev);
     } catch (error) {
       console.error('Error updating insight status:', error);
     }
@@ -471,19 +488,35 @@ function Dashboard() {
 
   const handleDetectSubscriptions = async () => {
     setDetectingSubs(true);
+    setDetectedSubs(null);
+    setSubscriptionScanMeta(null);
+    setSubscriptionScanError('');
     try {
-      const response = await axios.get(`${API}/ai/detect-subscriptions`);
+      const response = await axios.post(`${API}/ai/detect-subscriptions`);
       setDetectedSubs(response.data.detected || []);
+      setSubscriptionScanMeta({
+        method: response.data.method,
+        plaidStatus: response.data.plaid_recurring_status,
+        transactionsAnalyzed: response.data.transactions_analyzed || 0,
+        aiStatus: response.data.ai_review_status || 'not_configured',
+        aiCounts: response.data.ai_review_counts || {}
+      });
     } catch (error) {
       console.error('Error detecting subscriptions:', error);
+      setSubscriptionScanError(error.response?.data?.detail || 'Recurring-payment scan failed. Please try again.');
     }
     setDetectingSubs(false);
   };
 
   const handleSaveDetectedSubs = async (subsToSave) => {
     try {
-      await axios.post(`${API}/ai/detect-subscriptions/save`, subsToSave);
-      setDetectedSubs(null);
+      const response = await axios.post(`${API}/ai/detect-subscriptions/save`, subsToSave);
+      const savedNames = new Set((response.data.saved || []).map(name => name.trim().toLowerCase()));
+      setDetectedSubs(previous => (
+        previous
+          ? previous.filter(candidate => !savedNames.has((candidate.name || '').trim().toLowerCase()))
+          : previous
+      ));
       fetchData();
     } catch (error) {
       console.error('Error saving detected subscriptions:', error);
@@ -492,6 +525,7 @@ function Dashboard() {
   };
 
   const [showRecategorize, setShowRecategorize] = useState(false);
+  const [showReviewCenter, setShowReviewCenter] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(null); // e.g. "2026-03"
   const [monthInsights, setMonthInsights] = useState(null);
   const [monthInsightsLoading, setMonthInsightsLoading] = useState(false);
@@ -501,6 +535,28 @@ function Dashboard() {
   useEffect(() => {
     axios.defaults.headers.common['X-View-User-ID'] = viewUserId;
   }, [viewUserId]);
+
+  useEffect(() => {
+    if (!selectedMonth) {
+      setMonthInsights(null);
+      return undefined;
+    }
+    let cancelled = false;
+    setMonthInsightsLoading(true);
+    axios.get(`${API}/ai/insights/month/${selectedMonth}`)
+      .then((response) => {
+        if (!cancelled) setMonthInsights(response.data || { items: [] });
+      })
+      .catch(() => {
+        if (!cancelled) setMonthInsights({ items: [] });
+      })
+      .finally(() => {
+        if (!cancelled) setMonthInsightsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [API, selectedMonth, viewUserId]);
 
   useEffect(() => {
     setSelectedTransactions(new Set());
@@ -638,16 +694,49 @@ function Dashboard() {
     });
   };
 
+  const openTransactionsForCategory = (category, dateRange = {}) => {
+    const today = new Date();
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    setFilters({
+      startDate: dateRange.startDate || `${today.getFullYear()}-01-01`,
+      endDate: dateRange.endDate || todayKey,
+      category,
+      pdfSource: '',
+      accountType: ''
+    });
+    setAiSearchResults(null);
+    setSelectedTransactions(new Set());
+    setSelectAll(false);
+    setSelectedMonth(null);
+    setActiveTab('transactions');
+  };
+
+  const getMonthDateRange = (monthKey) => {
+    const [year, month] = monthKey.split('-').map(Number);
+    const today = new Date();
+    const lastDay = new Date(year, month, 0);
+    const effectiveEnd = lastDay > today ? today : lastDay;
+    return {
+      startDate: `${monthKey}-01`,
+      endDate: `${effectiveEnd.getFullYear()}-${String(effectiveEnd.getMonth() + 1).padStart(2, '0')}-${String(effectiveEnd.getDate()).padStart(2, '0')}`
+    };
+  };
+
   // Auto-fetch data when filters or sorting changes
   useEffect(() => {
     fetchData();
-  }, [filters, sortConfig, includeInternalTransfers, viewUserId]);
+  }, [filters, sortConfig, viewUserId]);
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-CA', {
-      style: 'currency',
-      currency: 'CAD'
-    }).format(Math.abs(amount));
+  const formatCurrency = (amount, currency = 'CAD') => {
+    const currencyCode = String(currency || 'CAD').toUpperCase();
+    try {
+      return new Intl.NumberFormat('en-CA', {
+        style: 'currency',
+        currency: currencyCode
+      }).format(Math.abs(amount));
+    } catch (error) {
+      return `${currencyCode} ${Math.abs(Number(amount || 0)).toFixed(2)}`;
+    }
   };
 
   const formatDate = (dateString) => {
@@ -727,7 +816,23 @@ function Dashboard() {
     ...timeAwareMonthlyReports.map((report) => report.total_spent),
     0
   );
-  const activeCategoryCount = new Set((transactions || []).map((transaction) => transaction.category).filter(Boolean)).size;
+  const activeCategoryCount = dashboardSummary?.active_category_count
+    ?? new Set((transactions || []).map((transaction) => transaction.category).filter(Boolean)).size;
+  const allTransactionCount = dashboardSummary?.all_transaction_count ?? transactions.length;
+  const periodTransactionCount = dashboardSummary?.transaction_count ?? transactions.length;
+  const ytdSpending = dashboardSummary?.total_spent
+    ?? categoryBreakdown.reduce((sum, category) => sum + Number(category.amount || 0), 0);
+  const ytdIncome = dashboardSummary?.total_income ?? 0;
+  const ytdRefunds = dashboardSummary?.total_refunds ?? 0;
+  const ytdNet = dashboardSummary?.net ?? 0;
+  const excludedMovementTotal = dashboardSummary
+    ? Number(dashboardSummary.total_transfer_in || 0)
+      + Number(dashboardSummary.total_transfer_out || 0)
+      + Number(dashboardSummary.total_credit_card_payments || 0)
+      + Number(dashboardSummary.total_investment_in || 0)
+      + Number(dashboardSummary.total_investment_out || 0)
+    : 0;
+  const foreignCurrencyCount = Number(dashboardSummary?.foreign_currency_count || 0);
   const filterCategoryOptions = isSharedView
     ? Array.from(new Set((transactions || []).map((transaction) => transaction.category).filter(Boolean)))
         .sort((a, b) => a.localeCompare(b))
@@ -753,8 +858,8 @@ function Dashboard() {
               <p className="text-gray-600 mt-1">Advanced Banking & Expense Analytics</p>
             </div>
             <div className="text-right">
-              <p className="text-sm text-gray-600">Total Transactions</p>
-              <p className="text-2xl font-bold text-blue-600">{transactions.length}</p>
+              <p className="text-sm text-gray-600">Records in Scope</p>
+              <p className="text-2xl font-bold text-blue-600">{allTransactionCount.toLocaleString()}</p>
               <p className="text-xs text-gray-500">Welcome, {user?.full_name || 'You'}</p>
             </div>
           </div>
@@ -794,41 +899,86 @@ function Dashboard() {
         {activeTab === 'overview' && !selectedMonth && (
           <div className="space-y-6">
             {/* Summary row */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="bg-white rounded-lg shadow p-5">
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Spending</p>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">YTD Spending</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">
-                  {formatCurrency(categoryBreakdown.reduce((sum, cat) => sum + cat.amount, 0))}
+                  {formatCurrency(ytdSpending)}
                 </p>
+                <p className="text-xs text-gray-500">Purchases only</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-5">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">YTD Income</p>
+                <p className="text-2xl font-bold text-green-600 mt-1">{formatCurrency(ytdIncome)}</p>
+                <p className="text-xs text-gray-500">Payroll and income</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-5">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">YTD Classified Surplus</p>
+                <p className={`text-2xl font-bold mt-1 ${ytdNet >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {ytdNet >= 0 ? '+' : '-'}{formatCurrency(Math.abs(ytdNet))}
+                </p>
+                <p className="text-xs text-gray-500">Income + {formatCurrency(ytdRefunds)} credits minus purchases</p>
               </div>
               <div className="bg-white rounded-lg shadow p-5">
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">This Month</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(currentMonthReport.total_spent)}</p>
-                <p className="text-xs text-gray-500">{currentMonthLabel}</p>
+                <p className="text-xs text-gray-500">{currentMonthLabel} spending</p>
               </div>
               <div className="bg-white rounded-lg shadow p-5">
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Transactions</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">{transactions.length}</p>
-              </div>
-              <div className="bg-white rounded-lg shadow p-5">
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Categories</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">{activeCategoryCount}</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{allTransactionCount.toLocaleString()}</p>
+                <p className="text-xs text-gray-500">{periodTransactionCount.toLocaleString()} posted {dashboardSummary?.currency || 'CAD'} YTD · {activeCategoryCount} purchase categories</p>
               </div>
             </div>
             <div className="text-sm text-gray-500">
               Data scope: <span className="font-medium text-gray-700">{getViewModeLabel()}</span>
+              <span className="ml-2">· {dashboardSummary?.currency || 'CAD'} · through {dashboardSummary?.period_end || 'today'}</span>
             </div>
-            <div className="flex justify-end">
-              <label className="inline-flex items-center space-x-2 text-sm text-gray-600">
-                <input
-                  type="checkbox"
-                  checked={includeInternalTransfers}
-                  onChange={(e) => setIncludeInternalTransfers(e.target.checked)}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                />
-                <span>Include internal transfers</span>
-              </label>
-            </div>
+            {excludedMovementTotal > 0 && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                {formatCurrency(excludedMovementTotal)} of transfers, investment movements, and credit-card payments is shown separately and excluded from spending/income totals.
+              </div>
+            )}
+            {Number(dashboardSummary?.pending_count || 0) > 0 && (
+              <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                {Number(dashboardSummary.pending_count).toLocaleString()} pending transactions are excluded until the institution posts or removes them. Pending {dashboardSummary?.currency || 'CAD'} movement is {formatCurrency(Number(dashboardSummary.pending_money_out || 0))} out / {formatCurrency(Number(dashboardSummary.pending_money_in || 0))} in.
+              </div>
+            )}
+            {foreignCurrencyCount > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                {foreignCurrencyCount} non-{dashboardSummary?.currency || 'CAD'} transactions are excluded from dashboard monetary totals and remain visible in the transaction table in their original currency.
+              </div>
+            )}
+            {(Number(dashboardSummary?.classification_review_count || 0) > 0 || Number(dashboardSummary?.ambiguous_transfer_review_count || 0) > 0) && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="space-y-1">
+                    {Number(dashboardSummary?.classification_review_count || 0) > 0 && (
+                      <p>{Number(dashboardSummary.classification_review_count).toLocaleString()} older transfer flags remain unresolved after verified account pairing and are not treated as internal automatically.</p>
+                    )}
+                    {Number(dashboardSummary?.ambiguous_transfer_review_count || 0) > 0 && (
+                      <p>{Number(dashboardSummary.ambiguous_transfer_review_count).toLocaleString()} entries have multiple eligible equal-amount cross-account matches. No internal pair was assumed.</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowReviewCenter(true)}
+                    className="shrink-0 px-3 py-1.5 text-xs font-medium bg-amber-700 text-white rounded hover:bg-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-600 whitespace-nowrap"
+                  >
+                    Open Review Center
+                  </button>
+                </div>
+              </div>
+            )}
+            {showReviewCenter && (
+              <ClassificationReviewCenter
+                API={API}
+                formatCurrency={formatCurrency}
+                formatDate={formatDate}
+                onClose={() => setShowReviewCenter(false)}
+                readOnly={isSharedView}
+              />
+            )}
 
             {/* Monthly Timeline */}
             <div className="bg-white rounded-lg shadow">
@@ -838,11 +988,11 @@ function Dashboard() {
               </div>
               <div className="divide-y divide-gray-200">
                 {timeAwareMonthlyReports.slice().reverse().map((report) => {
-                  const monthTransactions = transactions.filter(t => t.date?.startsWith(report.month));
-                  const transactionCount = monthTransactions.length;
-                  const inflows = Number(report.total_received ?? monthTransactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0));
+                  const transactionCount = Number(report.transaction_count || 0);
+                  const inflows = Number(report.total_income ?? report.total_received ?? 0);
                   const outflows = Number(report.total_spent || 0);
-                  const net = Number(report.net ?? (inflows - outflows));
+                  const refunds = Number(report.total_refunds || 0);
+                  const net = Number(report.net ?? (inflows + refunds - outflows));
                   const hasData = transactionCount > 0;
                   return (
                     <div
@@ -869,7 +1019,7 @@ function Dashboard() {
                               <p className="text-sm font-semibold text-gray-900">{formatCurrency(outflows)}</p>
                             </div>
                             <div className="text-right">
-                              <p className="text-xs text-gray-500">Received</p>
+                              <p className="text-xs text-gray-500">Income</p>
                               <p className="text-sm font-semibold text-green-600">{formatCurrency(inflows)}</p>
                             </div>
                             <div className="text-right">
@@ -901,9 +1051,11 @@ function Dashboard() {
             transaction_count: 0
           };
           const monthTx = transactions.filter(t => t.date?.startsWith(selectedMonth));
-          const monthInflows = Number(monthReport.total_received ?? monthTx.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0));
+          const monthInflows = Number(monthReport.total_income ?? monthReport.total_received ?? 0);
+          const monthRefunds = Number(monthReport.total_refunds || 0);
           const monthOutflows = Number(monthReport.total_spent || 0);
-          const monthNet = Number(monthReport.net ?? (monthInflows - monthOutflows));
+          const monthNet = Number(monthReport.net ?? (monthInflows + monthRefunds - monthOutflows));
+          const monthTransactionCount = Number(monthReport.transaction_count || monthTx.length);
           const monthCatBreakdown = monthReport.categories || {};
           const sortedCats = Object.entries(monthCatBreakdown).sort((a, b) => b[1] - a[1]);
           const catTotal = sortedCats.reduce((s, [, v]) => s + v, 0);
@@ -919,26 +1071,21 @@ function Dashboard() {
                 &larr; All Months
               </button>
               <h2 className="text-xl font-bold text-gray-900">{monthLabel}</h2>
-              <label className="inline-flex items-center space-x-2 text-sm text-gray-600 ml-auto">
-                <input
-                  type="checkbox"
-                  checked={includeInternalTransfers}
-                  onChange={(e) => setIncludeInternalTransfers(e.target.checked)}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                />
-                <span>Include internal transfers</span>
-              </label>
             </div>
 
             {/* Month summary cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="bg-white rounded-lg shadow p-5">
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Spent</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(monthOutflows)}</p>
               </div>
               <div className="bg-white rounded-lg shadow p-5">
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Received</p>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Income</p>
                 <p className="text-2xl font-bold text-green-600 mt-1">{formatCurrency(monthInflows)}</p>
+              </div>
+              <div className="bg-white rounded-lg shadow p-5">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Refunds & Credits</p>
+                <p className="text-2xl font-bold text-blue-600 mt-1">{formatCurrency(monthRefunds)}</p>
               </div>
               <div className="bg-white rounded-lg shadow p-5">
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Net</p>
@@ -948,7 +1095,7 @@ function Dashboard() {
               </div>
               <div className="bg-white rounded-lg shadow p-5">
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Transactions</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">{monthTx.length}</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{monthTransactionCount.toLocaleString()}</p>
               </div>
             </div>
 
@@ -1019,10 +1166,16 @@ function Dashboard() {
             <div className="bg-white rounded-lg shadow">
               <div className="px-6 py-4 border-b border-gray-200">
                 <h3 className="text-lg font-medium text-gray-900">Spending by Category</h3>
+                <p className="text-xs text-gray-500 mt-1">Select a category to open this month's matching transactions.</p>
               </div>
               <div className="p-6 space-y-3">
                 {sortedCats.map(([cat, amount]) => (
-                  <div key={cat} className="flex items-center justify-between">
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => openTransactionsForCategory(cat, getMonthDateRange(selectedMonth))}
+                    className="flex w-full items-center justify-between rounded-md px-2 py-1 text-left hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
                     <div className="flex items-center space-x-3">
                       <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                       <span className="text-sm font-medium text-gray-900">{cat}</span>
@@ -1031,7 +1184,7 @@ function Dashboard() {
                       <span className="text-sm font-semibold text-gray-900">{formatCurrency(amount)}</span>
                       <span className="text-xs text-gray-500 ml-2">({catTotal > 0 ? ((amount / catTotal) * 100).toFixed(1) : 0}%)</span>
                     </div>
-                  </div>
+                  </button>
                 ))}
                 {sortedCats.length === 0 && <p className="text-sm text-gray-500 text-center">No spending this month</p>}
               </div>
@@ -1066,8 +1219,16 @@ function Dashboard() {
         {/* Import PDF Tab */}
         {activeTab === 'import' && (
           <div className="space-y-6">
-            <PlaidConnectPanel onImported={fetchData} />
-            <ImportProgress onComplete={fetchData} />
+            {isSharedView ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Bank connections and statement imports are available only in personal view. Switch to your own profile before changing financial data.
+              </div>
+            ) : (
+              <>
+                <PlaidConnectPanel onImported={fetchData} />
+                <ImportProgress onComplete={fetchData} />
+              </>
+            )}
           </div>
         )}
 
@@ -1319,6 +1480,8 @@ function Dashboard() {
             onSaveDetectedSubs={handleSaveDetectedSubs}
             detectedSubs={detectedSubs}
             detectingSubs={detectingSubs}
+            scanMeta={subscriptionScanMeta}
+            scanError={subscriptionScanError}
             readOnly={isSharedView}
           />
         )}
@@ -1328,9 +1491,11 @@ function Dashboard() {
           <AnalyticsDashboard
             categoryBreakdown={categoryBreakdown}
             monthlyReports={timeAwareMonthlyReports}
-            transactions={transactions}
+            dashboardSummary={dashboardSummary}
             formatCurrency={formatCurrency}
             getMonthName={getMonthName}
+            onOpenCategory={(category) => openTransactionsForCategory(category)}
+            onOpenReviewCenter={() => { setActiveTab('overview'); setShowReviewCenter(true); }}
           />
         )}
 

@@ -7,17 +7,79 @@ import SyncIcon from '@mui/icons-material/Sync';
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined';
+import { useAuth } from '../AuthContext';
 
 const backendBaseUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 const API = `${backendBaseUrl}/api`;
+const PLAID_OAUTH_SESSION_KEY = 'lifetracker_plaid_oauth_context';
+const PLAID_OAUTH_SESSION_MAX_AGE_MS = 30 * 60 * 1000;
+
+const readPlaidOAuthContext = (expectedUserId) => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const value = JSON.parse(window.sessionStorage.getItem(PLAID_OAUTH_SESSION_KEY) || 'null');
+    if (!value || typeof value.token !== 'string' || !['connect', 'update'].includes(value.mode)) return null;
+    if (value.mode === 'update' && typeof value.itemId !== 'string') return null;
+    if (!expectedUserId || value.userId !== expectedUserId) {
+      window.sessionStorage.removeItem(PLAID_OAUTH_SESSION_KEY);
+      return null;
+    }
+    if (!Number.isFinite(value.createdAt) || Date.now() - value.createdAt > PLAID_OAUTH_SESSION_MAX_AGE_MS) {
+      window.sessionStorage.removeItem(PLAID_OAUTH_SESSION_KEY);
+      return null;
+    }
+    return value;
+  } catch (_) {
+    window.sessionStorage.removeItem(PLAID_OAUTH_SESSION_KEY);
+    return null;
+  }
+};
+
+const storePlaidOAuthContext = (token, mode, itemId = null, userId = null) => {
+  if (typeof window === 'undefined' || !token || !userId) return;
+  window.sessionStorage.setItem(
+    PLAID_OAUTH_SESSION_KEY,
+    JSON.stringify({ token, mode, itemId, userId, createdAt: Date.now() }),
+  );
+};
+
+const clearPlaidOAuthContext = () => {
+  if (typeof window === 'undefined') return;
+  window.sessionStorage.removeItem(PLAID_OAUTH_SESSION_KEY);
+  const currentUrl = new URL(window.location.href);
+  if (currentUrl.searchParams.has('oauth_state_id')) {
+    currentUrl.searchParams.delete('oauth_state_id');
+    window.history.replaceState({}, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+  }
+};
 
 const PlaidConnectPanel = ({ onImported }) => {
+  const { user } = useAuth();
+  const initialOAuthContext = readPlaidOAuthContext(user?.id);
+  const receivedRedirectUri = (
+    typeof window !== 'undefined' && new URL(window.location.href).searchParams.has('oauth_state_id')
+      ? window.location.href
+      : undefined
+  );
   const [status, setStatus] = useState(null); // { type: 'success'|'error'|'info', text: string }
   const [plaidStatus, setPlaidStatus] = useState(null);
   const [connections, setConnections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingLinkToken, setLoadingLinkToken] = useState(false);
-  const [linkToken, setLinkToken] = useState(null);
+  const [linkToken, setLinkToken] = useState(
+    receivedRedirectUri ? initialOAuthContext?.token || null : null,
+  );
+  const [linkMode, setLinkMode] = useState(
+    receivedRedirectUri ? initialOAuthContext?.mode || 'connect' : 'connect',
+  ); // connect | update
+  const [updateItemId, setUpdateItemId] = useState(
+    receivedRedirectUri ? initialOAuthContext?.itemId || null : null,
+  );
+  const [resumeOAuthWhenReady, setResumeOAuthWhenReady] = useState(
+    Boolean(receivedRedirectUri && initialOAuthContext?.token),
+  );
+  const [openUpdateWhenReady, setOpenUpdateWhenReady] = useState(false);
+  const [preparingUpdateItemId, setPreparingUpdateItemId] = useState(null);
   const [syncingKey, setSyncingKey] = useState(null); // item_id | 'all'
   const [disconnectingItemId, setDisconnectingItemId] = useState(null);
 
@@ -42,6 +104,11 @@ const PlaidConnectPanel = ({ onImported }) => {
 
   const createLinkToken = async () => {
     setLoadingLinkToken(true);
+    clearPlaidOAuthContext();
+    setResumeOAuthWhenReady(false);
+    setLinkMode('connect');
+    setUpdateItemId(null);
+    setOpenUpdateWhenReady(false);
     try {
       const response = await axios.post(`${API}/plaid/link-token/create`);
       setLinkToken(response.data?.link_token || null);
@@ -68,15 +135,47 @@ const PlaidConnectPanel = ({ onImported }) => {
 
   useEffect(() => {
     if (plaidStatus?.enabled) {
-      createLinkToken();
+      if (!(receivedRedirectUri && linkToken)) {
+        createLinkToken();
+      }
     } else {
       setLinkToken(null);
     }
+    // Link token creation is intentionally keyed only to backend readiness.
   }, [plaidStatus?.enabled]);
 
   const { open, ready, error: plaidLinkError } = usePlaidLink({
     token: linkToken || null,
+    receivedRedirectUri,
     onSuccess: async (publicToken) => {
+      clearPlaidOAuthContext();
+      if (linkMode === 'update' && updateItemId) {
+        setStatus({ type: 'info', text: 'Bank access updated. Syncing transactions...' });
+        try {
+          const response = await axios.post(`${API}/plaid/sync`, {
+            item_id: updateItemId,
+            update_mode_completed: true,
+          });
+          setStatus({
+            type: 'success',
+            text: `Access updated. Added ${response.data?.total_added || 0}, merged ${response.data?.total_merged || 0}, updated ${response.data?.total_modified || 0}.`,
+          });
+          await refreshConnections();
+          if (onImported) {
+            onImported();
+          }
+        } catch (syncError) {
+          console.error('Plaid update-mode sync failed:', syncError);
+          setStatus({
+            type: 'error',
+            text: syncError.response?.data?.detail || 'Bank access was updated, but the follow-up sync failed.',
+          });
+        } finally {
+          createLinkToken();
+        }
+        return;
+      }
+
       setStatus({ type: 'info', text: 'Connecting account and importing transactions...' });
       try {
         const response = await axios.post(`${API}/plaid/exchange-public-token`, {
@@ -102,14 +201,31 @@ const PlaidConnectPanel = ({ onImported }) => {
       }
     },
     onExit: (exitError) => {
+      clearPlaidOAuthContext();
       if (exitError) {
         setStatus({
           type: 'error',
           text: exitError.display_message || exitError.error_message || 'Plaid Link exited with an error.',
         });
       }
+      if (linkMode === 'update') {
+        createLinkToken();
+      }
     },
   });
+
+  useEffect(() => {
+    if (!openUpdateWhenReady || linkMode !== 'update' || !linkToken || !ready) return;
+    setOpenUpdateWhenReady(false);
+    storePlaidOAuthContext(linkToken, 'update', updateItemId, user?.id);
+    open();
+  }, [openUpdateWhenReady, linkMode, linkToken, updateItemId, user?.id, ready, open]);
+
+  useEffect(() => {
+    if (!resumeOAuthWhenReady || !receivedRedirectUri || !linkToken || !ready) return;
+    setResumeOAuthWhenReady(false);
+    open();
+  }, [resumeOAuthWhenReady, receivedRedirectUri, linkToken, ready, open]);
 
   useEffect(() => {
     if (!plaidLinkError) return;
@@ -120,6 +236,10 @@ const PlaidConnectPanel = ({ onImported }) => {
   }, [plaidLinkError]);
 
   const handleConnect = () => {
+    if (preparingUpdateItemId || linkMode === 'update') {
+      setStatus({ type: 'info', text: 'Finish the current bank update first.' });
+      return;
+    }
     if (!plaidStatus?.enabled) {
       setStatus({
         type: 'error',
@@ -134,6 +254,7 @@ const PlaidConnectPanel = ({ onImported }) => {
       });
       return;
     }
+    storePlaidOAuthContext(linkToken, 'connect', null, user?.id);
     open();
   };
 
@@ -159,6 +280,31 @@ const PlaidConnectPanel = ({ onImported }) => {
       });
     } finally {
       setSyncingKey(null);
+    }
+  };
+
+  const handleUpdateConnection = async (itemId) => {
+    if (preparingUpdateItemId || linkMode === 'update') return;
+    setPreparingUpdateItemId(itemId);
+    setStatus({ type: 'info', text: 'Preparing secure bank update...' });
+    try {
+      const response = await axios.post(`${API}/plaid/item/${itemId}/update-link-token`);
+      const updateToken = response.data?.link_token;
+      if (!updateToken) {
+        throw new Error('Missing Plaid update token');
+      }
+      setUpdateItemId(itemId);
+      setLinkMode('update');
+      setLinkToken(updateToken);
+      setOpenUpdateWhenReady(true);
+    } catch (error) {
+      console.error('Failed to create Plaid update token:', error);
+      setStatus({
+        type: 'error',
+        text: error.response?.data?.detail || 'Unable to start the bank repair flow.',
+      });
+    } finally {
+      setPreparingUpdateItemId(null);
     }
   };
 
@@ -203,7 +349,7 @@ const PlaidConnectPanel = ({ onImported }) => {
           </button>
           <button
             onClick={handleConnect}
-            disabled={!plaidStatus?.enabled || !ready || loadingLinkToken}
+            disabled={!plaidStatus?.enabled || !ready || loadingLinkToken || Boolean(preparingUpdateItemId) || linkMode === 'update'}
             className="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center space-x-1.5"
           >
             <LinkIcon sx={{ fontSize: 16 }} />
@@ -219,7 +365,7 @@ const PlaidConnectPanel = ({ onImported }) => {
           <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 flex items-start space-x-2">
             <WarningAmberIcon sx={{ fontSize: 16, marginTop: '2px' }} />
             <span>
-              Plaid is not configured on the backend. Add `PLAID_CLIENT_ID`, `PLAID_SECRET`, and `PLAID_ENV` to backend env.
+              Plaid is not configured on the backend. Add `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV`, and `PLAID_TOKEN_ENCRYPTION_KEY` to backend env.
             </span>
           </div>
         )}
@@ -253,11 +399,27 @@ const PlaidConnectPanel = ({ onImported }) => {
                   {connection.account_count || 0} accounts
                   {connection.last_successful_sync ? ` • Last sync ${new Date(connection.last_successful_sync).toLocaleString()}` : ''}
                 </p>
-                {connection.status === 'error' && connection.last_error && (
+                {connection.last_error && ['error', 'login_required', 'update_required'].includes(connection.status) && (
                   <p className="text-xs text-red-600 mt-1">{connection.last_error}</p>
                 )}
               </div>
               <div className="flex items-center space-x-2">
+                {(connection.update_mode_required || connection.new_accounts_available || ['login_required', 'update_required'].includes(connection.status)) && (
+                  <button
+                    onClick={() => handleUpdateConnection(connection.item_id)}
+                    disabled={Boolean(preparingUpdateItemId) || linkMode === 'update'}
+                    className="px-2.5 py-1.5 text-xs border border-amber-300 rounded text-amber-700 hover:bg-amber-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+                  >
+                    <WarningAmberIcon sx={{ fontSize: 14 }} />
+                    <span>
+                      {preparingUpdateItemId === connection.item_id
+                        ? 'Preparing'
+                        : connection.new_accounts_available
+                          ? 'Update Accounts'
+                          : 'Repair'}
+                    </span>
+                  </button>
+                )}
                 <button
                   onClick={() => handleSync(connection.item_id)}
                   disabled={syncingKey === connection.item_id}

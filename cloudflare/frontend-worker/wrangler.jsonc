@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "fintrack-web",
+  "compatibility_date": "2026-08-31",
+  "workers_dev": false,
+  "routes": [
+    {
+      "pattern": "fintrack.olaifa.dev",
+      "custom_domain": true
+    }
+  ],
+  "assets": {
+    "directory": "../../frontend/build",
+    "not_found_handling": "single-page-application",
+    "html_handling": "none"
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.1
+  }
+}
