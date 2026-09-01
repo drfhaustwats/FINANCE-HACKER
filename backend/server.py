@@ -915,6 +915,12 @@ async def get_view_user_id(
     if not view_user_id or view_user_id == 'personal':
         return current_user["id"]
 
+    # The browser sends the concrete current-user ID for personal view so the
+    # same header shape works when switching between personal/member scopes.
+    # Self-access must not depend on household membership.
+    if view_user_id == current_user["id"]:
+        return current_user["id"]
+
     if view_user_id == 'family_view':
         # Return special identifier for family view
         return 'family_view'

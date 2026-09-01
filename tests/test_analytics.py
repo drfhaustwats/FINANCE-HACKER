@@ -3696,5 +3696,30 @@ class AnalyticsEndpointTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(load_transactions.await_count, 2)
 
 
+class ViewScopeAuthorizationTests(unittest.TestCase):
+    def test_explicit_self_header_is_allowed_without_household(self):
+        current_user = {"id": "user-self", "household_id": None}
+
+        resolved = asyncio.run(server.get_view_user_id(
+            view_user_id=None,
+            view_user_id_header="user-self",
+            current_user=current_user,
+        ))
+
+        self.assertEqual(resolved, "user-self")
+
+    def test_other_user_header_is_rejected_without_household(self):
+        current_user = {"id": "user-self", "household_id": None}
+
+        with self.assertRaises(server.HTTPException) as raised:
+            asyncio.run(server.get_view_user_id(
+                view_user_id=None,
+                view_user_id_header="other-user",
+                current_user=current_user,
+            ))
+
+        self.assertEqual(raised.exception.status_code, 403)
+
+
 if __name__ == "__main__":
     unittest.main()
